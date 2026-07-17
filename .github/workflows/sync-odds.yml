@@ -2,10 +2,10 @@ name: Sync odds & scores
 
 on:
   schedule:
-    # Every 30 minutes. Adjust based on your The Odds API free-tier usage
-    # (see README "Adding live odds" section) — e.g. change to "0 * * * *"
-    # for hourly if you're burning through your monthly credit budget.
-    - cron: "*/30 * * * *"
+    # Twice a day. With 6 sports tracked, this already uses a meaningful
+    # chunk of the free ~500 credit/month budget — see README "A note on
+    # the free tier's request budget" before tightening this further.
+    - cron: "0 12,20 * * *"
   workflow_dispatch: {} # lets you trigger a run manually from the Actions tab
 
 jobs:

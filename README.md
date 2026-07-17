@@ -100,9 +100,10 @@ instead of manual entry, and finished games auto-settle from live scores.
    (`SYNC_SECRET` just needs to be hard to guess — it stops random people
    from triggering syncs on your deployed URL. Generate one with
    `openssl rand -hex 32` or any password generator.)
-3. In Admin, click **"Sync live odds now"** — this pulls NFL & NBA games/
-   lines from The Odds API and settles any games that have finished.
-4. To track different or more sports, edit `TRACKED_SPORTS` in
+3. In Admin, click **"Sync live odds now"** — this pulls games/lines for
+   NFL, NCAAF, NBA, NCAAB, MLB, and NHL from The Odds API, and settles any
+   games that have finished.
+4. To track different or fewer sports, edit `TRACKED_SPORTS` in
    [`src/lib/sync.ts`](src/lib/sync.ts) — sport keys are listed at
    `https://api.the-odds-api.com/v4/sports?apiKey=YOUR_KEY`.
 
@@ -121,20 +122,26 @@ To enable it:
    and add two repo secrets:
    - `APP_URL` — your deployed URL, e.g. `https://yourapp.vercel.app`
    - `SYNC_SECRET` — the same value you put in `.env.local` / Vercel's env vars
-3. The workflow runs every 30 minutes by default. You can also trigger it
-   manually from the repo's **Actions** tab (`workflow_dispatch`).
+3. The workflow runs twice a day (noon and 8pm) by default. You can also
+   trigger it manually from the repo's **Actions** tab (`workflow_dispatch`).
 
 ### A note on the free tier's request budget
 
 The Odds API's free tier gives ~500 credits/month, and each odds request
 costs roughly 1 credit per market per region requested (this app requests
 3 markets — h2h, spreads, totals — in 1 region, so ~3 credits per sport per
-sync, plus a smaller cost for the scores check). Sync-ing 2 sports every 30
-minutes adds up fast over a month, so if you're close to the limit:
+sync, plus a smaller cost for the scores check). With all 6 sports in
+`TRACKED_SPORTS` tracked, one full sync run costs roughly 24 credits — so
+even twice a day adds up to most of the monthly free budget. If you're
+close to the limit:
 
-- Widen the cron interval in `sync-odds.yml` (e.g. hourly: `0 * * * *`, or
-  every few hours in the off-season).
-- Track fewer sports in `TRACKED_SPORTS`.
+- Widen the cron interval further in `sync-odds.yml` (e.g. once a day, or
+  every few days in the off-season for a given sport).
+- Track fewer sports in `TRACKED_SPORTS` — dropping to 2-3 sports lets you
+  sync much more often within the same budget.
+- Use the **"Sync live odds now"** button in Admin for on-demand refreshes
+  any time — it's free and uncapped by the cron schedule, so you can lean
+  on it around game time instead of a tighter automatic schedule.
 - Check your actual usage on the-odds-api.com's dashboard and tune from there.
 
 True second-by-second "live" in-play odds aren't realistic on the free

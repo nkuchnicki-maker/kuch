@@ -4,10 +4,16 @@ import { fetchOdds, fetchScores, pickBookmaker } from "./oddsApi";
 import { settlePicksForGame } from "./settle";
 
 // The Odds API "sport key" -> label we store in games.sport.
-// Add/remove entries here to change what gets auto-synced.
+// Add/remove entries here to change what gets auto-synced. This covers
+// the major US sports; out-of-season ones just sync zero games until
+// their season starts, at no extra cost.
 export const TRACKED_SPORTS: { key: string; label: string }[] = [
   { key: "americanfootball_nfl", label: "NFL" },
+  { key: "americanfootball_ncaaf", label: "NCAAF" },
   { key: "basketball_nba", label: "NBA" },
+  { key: "basketball_ncaab", label: "NCAAB" },
+  { key: "baseball_mlb", label: "MLB" },
+  { key: "icehockey_nhl", label: "NHL" },
 ];
 
 export type SyncSummary = {

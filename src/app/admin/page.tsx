@@ -132,8 +132,10 @@ export default async function AdminPage() {
         <h2 className="mb-4 text-lg font-semibold">Live odds sync</h2>
         <p className="mb-4 text-sm text-slate-400">
           Pulls current lines from The Odds API for {" "}
-          <span className="text-slate-300">NFL &amp; NBA</span> and settles
-          any finished games using live scores. Requires{" "}
+          <span className="text-slate-300">
+            NFL, NCAAF, NBA, NCAAB, MLB &amp; NHL
+          </span>{" "}
+          and settles any finished games using live scores. Requires{" "}
           <code className="rounded bg-slate-800 px-1">ODDS_API_KEY</code> to
           be set. For hands-off updates, set up the scheduled sync in the
           README instead of clicking this every time.
