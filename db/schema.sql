@@ -38,13 +38,16 @@ create table if not exists coin_transactions (
 -- ============================================================
 create table if not exists games (
   id uuid primary key default gen_random_uuid(),
-  sport text not null, -- 'NFL', 'NBA', 'NCAAF', etc.
-  home_team text not null,
-  away_team text not null,
+  sport text not null, -- 'NFL', 'NBA', 'NCAAF', 'Golf', etc.
+  event_type text not null default 'matchup', -- 'matchup' (two teams) | 'outright' (a field of players)
+  home_team text, -- null for outright events
+  away_team text, -- null for outright events
+  event_name text, -- e.g. 'Masters Tournament' — only set for outright events
   start_time timestamptz not null,
   status text not null default 'scheduled', -- scheduled | live | final | cancelled
   home_score integer,
   away_score integer,
+  winner_name text, -- outright events: the declared winner, set at settlement
   external_id text unique, -- The Odds API event id, null for manually-entered games
   created_by uuid references users(id),
   created_at timestamptz not null default now()
@@ -60,6 +63,7 @@ create table if not exists lines (
   total numeric, -- over/under
   moneyline_home integer,
   moneyline_away integer,
+  outrights jsonb, -- outright events only: [{"name": "Scottie Scheffler", "odds": 500}, ...]
   updated_by uuid references users(id),
   updated_at timestamptz not null default now()
 );
@@ -72,8 +76,8 @@ create table if not exists picks (
   user_id uuid not null references users(id) on delete cascade,
   game_id uuid not null references games(id) on delete cascade,
   line_id uuid not null references lines(id),
-  pick_type text not null, -- 'spread' | 'total' | 'moneyline'
-  pick_side text not null, -- 'home' | 'away' | 'over' | 'under'
+  pick_type text not null, -- 'spread' | 'total' | 'moneyline' | 'outright'
+  pick_side text not null, -- 'home' | 'away' | 'over' | 'under' | a participant's name (outright)
   wager numeric not null check (wager > 0),
   potential_payout numeric not null,
   status text not null default 'pending', -- pending | win | loss | push | cancelled

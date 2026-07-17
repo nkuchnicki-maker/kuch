@@ -11,8 +11,9 @@ type PickRow = {
   potential_payout: string;
   status: string;
   created_at: string;
-  home_team: string;
-  away_team: string;
+  home_team: string | null;
+  away_team: string | null;
+  event_name: string | null;
   sport: string;
 };
 
@@ -22,7 +23,7 @@ export default async function MyPicksPage() {
 
   const { rows: picks } = await db.query<PickRow>(
     `select p.id, p.pick_type, p.pick_side, p.wager, p.potential_payout, p.status, p.created_at,
-            g.home_team, g.away_team, g.sport
+            g.home_team, g.away_team, g.event_name, g.sport
      from picks p
      join games g on g.id = p.game_id
      where p.user_id = $1
@@ -87,9 +88,7 @@ export default async function MyPicksPage() {
               picks.map((p) => (
                 <tr key={p.id} className="border-b border-slate-800/50">
                   <td className="px-4 py-3">
-                    <div>
-                      {p.away_team} @ {p.home_team}
-                    </div>
+                    <div>{p.event_name ?? `${p.away_team} @ ${p.home_team}`}</div>
                     <div className="text-xs text-slate-500">{p.sport}</div>
                   </td>
                   <td className="capitalize text-slate-300">

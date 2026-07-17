@@ -1,49 +1,93 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { placePickAction } from "./actions";
+import { placePickAction, placeOutrightPickAction } from "./actions";
+import SportFilter from "./SportFilter";
 
 type GameLineRow = {
   id: string;
   sport: string;
-  home_team: string;
-  away_team: string;
+  event_type: string;
+  home_team: string | null;
+  away_team: string | null;
+  event_name: string | null;
   start_time: string;
   line_id: string;
   spread: string | null;
   total: string | null;
   moneyline_home: number | null;
   moneyline_away: number | null;
+  outrights: { name: string; odds: number }[] | null;
 };
 
-export default async function LinesPage() {
+export default async function LinesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ sport?: string }>;
+}) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const { rows: games } = await db.query<GameLineRow>(`
-    select g.id, g.sport, g.home_team, g.away_team, g.start_time,
-           l.id as line_id, l.spread, l.total, l.moneyline_home, l.moneyline_away
+  const { sport: selectedSport = "" } = await searchParams;
+
+  const { rows: allGames } = await db.query<GameLineRow>(`
+    select g.id, g.sport, g.event_type, g.home_team, g.away_team, g.event_name, g.start_time,
+           l.id as line_id, l.spread, l.total, l.moneyline_home, l.moneyline_away, l.outrights
     from games g
     join lines l on l.game_id = g.id
     where g.status = 'scheduled'
     order by g.start_time
   `);
 
+  const sports = [...new Set(allGames.map((g) => g.sport))].sort();
+  const games = selectedSport
+    ? allGames.filter((g) => g.sport === selectedSport)
+    : allGames;
+
   return (
     <div className="min-h-screen bg-slate-950 p-6 text-slate-100">
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-emerald-400">Bettor Edge</h1>
-        <div className="text-sm text-slate-300">
-          Your balance:{" "}
-          <span className="font-mono text-emerald-400">
-            {user.coin_balance} coins
-          </span>
+        <div className="flex items-center gap-4">
+          <SportFilter sports={sports} selected={selectedSport} />
+          <div className="text-sm text-slate-300">
+            Your balance:{" "}
+            <span className="font-mono text-emerald-400">
+              {user.coin_balance} coins
+            </span>
+          </div>
         </div>
       </div>
 
       <div className="grid gap-4">
         {games.length ? (
           games.map((g) => {
+            if (g.event_type === "outright") {
+              return (
+                <div
+                  key={g.id}
+                  className="rounded-xl border border-slate-800 bg-slate-900 p-5"
+                >
+                  <div className="mb-3 flex items-baseline justify-between">
+                    <div>
+                      <span className="text-xs uppercase text-slate-500">
+                        {g.sport}
+                      </span>
+                      <h2 className="text-lg font-semibold">{g.event_name}</h2>
+                    </div>
+                    <span className="text-xs text-slate-500">
+                      {new Date(g.start_time).toLocaleString()}
+                    </span>
+                  </div>
+                  <OutrightPickForm
+                    gameId={g.id}
+                    lineId={g.line_id}
+                    participants={g.outrights ?? []}
+                  />
+                </div>
+              );
+            }
+
             const spread = g.spread != null ? Number(g.spread) : null;
             const total = g.total != null ? Number(g.total) : null;
             return (
@@ -120,7 +164,9 @@ export default async function LinesPage() {
           })
         ) : (
           <p className="text-slate-400">
-            No games open right now — ask your admin to add some.
+            {selectedSport
+              ? `No ${selectedSport} games open right now.`
+              : "No games open right now — ask your admin to add some."}
           </p>
         )}
       </div>
@@ -182,6 +228,53 @@ function PickForm({
           Place
         </button>
       </div>
+    </form>
+  );
+}
+
+function OutrightPickForm({
+  gameId,
+  lineId,
+  participants,
+}: {
+  gameId: string;
+  lineId: string;
+  participants: { name: string; odds: number }[];
+}) {
+  return (
+    <form
+      action={placeOutrightPickAction}
+      className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-800 bg-slate-950 p-3"
+    >
+      <input type="hidden" name="gameId" value={gameId} />
+      <input type="hidden" name="lineId" value={lineId} />
+      <select
+        name="participantName"
+        required
+        className="min-w-[220px] flex-1 rounded-lg border border-slate-700 bg-slate-800 px-2 py-1.5 text-sm"
+      >
+        <option value="">Pick a player to win…</option>
+        {participants.map((p) => (
+          <option key={p.name} value={p.name}>
+            {p.name} ({p.odds > 0 ? "+" : ""}
+            {p.odds})
+          </option>
+        ))}
+      </select>
+      <input
+        name="wager"
+        type="number"
+        min={1}
+        placeholder="Coins"
+        required
+        className="w-28 rounded-lg border border-slate-700 bg-slate-800 px-2 py-1.5 text-sm"
+      />
+      <button
+        type="submit"
+        className="whitespace-nowrap rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-semibold text-slate-950 hover:bg-emerald-400"
+      >
+        Place
+      </button>
     </form>
   );
 }

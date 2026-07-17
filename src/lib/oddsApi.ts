@@ -9,7 +9,7 @@ export type OddsApiOutcome = {
 };
 
 export type OddsApiMarket = {
-  key: "h2h" | "spreads" | "totals";
+  key: "h2h" | "spreads" | "totals" | "outrights";
   outcomes: OddsApiOutcome[];
 };
 
@@ -24,8 +24,8 @@ export type OddsApiEvent = {
   sport_key: string;
   sport_title: string;
   commence_time: string;
-  home_team: string;
-  away_team: string;
+  home_team: string | null; // null for outright events (e.g. golf tournaments)
+  away_team: string | null;
   bookmakers: OddsApiBookmaker[];
 };
 
@@ -50,6 +50,15 @@ export async function fetchOdds(sportKey: string): Promise<OddsApiEvent[]> {
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) {
     throw new Error(`The Odds API odds request failed: ${res.status} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+export async function fetchOutrights(sportKey: string): Promise<OddsApiEvent[]> {
+  const url = `${BASE_URL}/sports/${sportKey}/odds?apiKey=${apiKey()}&regions=us&markets=outrights&oddsFormat=american`;
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) {
+    throw new Error(`The Odds API outrights request failed: ${res.status} ${await res.text()}`);
   }
   return res.json();
 }

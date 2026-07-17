@@ -54,6 +54,11 @@ contents of [`db/schema.sql`](db/schema.sql) into the **Query** tab in the
 Vercel Storage dashboard for your database and run it. This creates all the
 tables and the weekly leaderboard view.
 
+If you're updating an existing database rather than starting fresh, you
+only need to run the files in [`db/migrations/`](db/migrations) (in order)
+instead of the full `schema.sql` — each one only adds what's new since the
+last release.
+
 ### 4. Create your admin account
 
 There's no dashboard to hand-create the first user, so a small script does it:
@@ -101,11 +106,22 @@ instead of manual entry, and finished games auto-settle from live scores.
    from triggering syncs on your deployed URL. Generate one with
    `openssl rand -hex 32` or any password generator.)
 3. In Admin, click **"Sync live odds now"** — this pulls games/lines for
-   NFL, NCAAF, NBA, NCAAB, MLB, and NHL from The Odds API, and settles any
-   games that have finished.
-4. To track different or fewer sports, edit `TRACKED_SPORTS` in
+   NFL, NCAAF, NBA, NCAAB, MLB, and NHL from The Odds API, plus the current
+   golf majors (Masters, US Open, PGA Championship, The Open), and settles
+   any two-team games that have finished.
+4. To track different or fewer sports, edit `TRACKED_SPORTS` (two-team
+   sports) or `GOLF_TOURNAMENTS` (outright/golf events) in
    [`src/lib/sync.ts`](src/lib/sync.ts) — sport keys are listed at
    `https://api.the-odds-api.com/v4/sports?apiKey=YOUR_KEY`.
+
+### Golf works differently
+
+Golf is a whole field of players competing for one winner, not two teams —
+so instead of a spread/total/moneyline, players place an "outright" pick on
+one player to win the tournament. Golf events never auto-settle from a
+score sync (there's no such thing as a live score for "who wins the
+tournament"); in Admin, pick the champion from a dropdown once the
+tournament finishes, and every pick naming that player is settled as a win.
 
 ### Automating it (so you don't have to click the button)
 

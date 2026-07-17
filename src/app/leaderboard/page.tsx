@@ -19,8 +19,9 @@ type FeedRow = {
   status: string;
   created_at: string;
   display_name: string;
-  home_team: string;
-  away_team: string;
+  home_team: string | null;
+  away_team: string | null;
+  event_name: string | null;
 };
 
 export default async function LeaderboardPage() {
@@ -33,7 +34,7 @@ export default async function LeaderboardPage() {
     ),
     db.query<FeedRow>(`
       select p.id, p.pick_type, p.pick_side, p.wager, p.potential_payout, p.status, p.created_at,
-             u.display_name, g.home_team, g.away_team
+             u.display_name, g.home_team, g.away_team, g.event_name
       from picks p
       join users u on u.id = p.user_id
       join games g on g.id = p.game_id
@@ -98,7 +99,8 @@ export default async function LeaderboardPage() {
                   <StatusBadge status={p.status} />
                 </div>
                 <div className="text-slate-400">
-                  {p.pick_type} — {p.pick_side} · {p.away_team} @ {p.home_team}
+                  {p.pick_type} — {p.pick_side} ·{" "}
+                  {p.event_name ?? `${p.away_team} @ ${p.home_team}`}
                 </div>
                 <div className="text-xs text-slate-500">
                   Wagered {p.wager} coins to win {p.potential_payout}

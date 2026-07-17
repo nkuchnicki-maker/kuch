@@ -1,6 +1,6 @@
 import "server-only";
 import type { Pool } from "pg";
-import { fetchOdds, fetchScores, pickBookmaker } from "./oddsApi";
+import { fetchOdds, fetchOutrights, fetchScores, pickBookmaker } from "./oddsApi";
 import { settlePicksForGame } from "./settle";
 
 // The Odds API "sport key" -> label we store in games.sport.
@@ -14,6 +14,16 @@ export const TRACKED_SPORTS: { key: string; label: string }[] = [
   { key: "basketball_ncaab", label: "NCAAB" },
   { key: "baseball_mlb", label: "MLB" },
   { key: "icehockey_nhl", label: "NHL" },
+];
+
+// Golf works as "outright" events (a whole field of players, one winner)
+// rather than two-team matchups, so it's synced separately — no live
+// scores exist for these; the admin declares the winner manually.
+export const GOLF_TOURNAMENTS: { key: string; label: string }[] = [
+  { key: "golf_masters_tournament_winner", label: "The Masters" },
+  { key: "golf_the_open_championship_winner", label: "The Open Championship" },
+  { key: "golf_pga_championship_winner", label: "PGA Championship" },
+  { key: "golf_us_open_winner", label: "US Open" },
 ];
 
 export type SyncSummary = {
@@ -98,6 +108,71 @@ export async function syncOddsForSport(
   return { gamesUpserted, errors };
 }
 
+export async function syncGolfOutrights(
+  db: Pool,
+): Promise<{ gamesUpserted: number; errors: string[] }> {
+  const errors: string[] = [];
+  let gamesUpserted = 0;
+
+  for (const { key, label } of GOLF_TOURNAMENTS) {
+    let events;
+    try {
+      events = await fetchOutrights(key);
+    } catch (err) {
+      errors.push(`${label}: ${(err as Error).message}`);
+      continue;
+    }
+
+    for (const event of events) {
+      let game: { id: string; status: string };
+      try {
+        const { rows } = await db.query<{ id: string; status: string }>(
+          `insert into games (external_id, sport, event_type, event_name, start_time)
+           values ($1, 'Golf', 'outright', $2, $3)
+           on conflict (external_id) do update set
+             event_name = excluded.event_name,
+             start_time = excluded.start_time
+           returning id, status`,
+          [event.id, label, event.commence_time],
+        );
+        game = rows[0];
+      } catch (err) {
+        errors.push(`${label}: ${(err as Error).message}`);
+        continue;
+      }
+
+      if (game.status !== "scheduled") continue;
+
+      const bookmaker = pickBookmaker(event.bookmakers);
+      const outrights = bookmaker?.markets.find((m) => m.key === "outrights");
+      if (!outrights) continue;
+
+      const participants = outrights.outcomes.map((o) => ({
+        name: o.name,
+        odds: o.price,
+      }));
+
+      try {
+        await db.query(
+          `insert into lines (game_id, outrights, updated_at)
+           values ($1, $2::jsonb, now())
+           on conflict (game_id) do update set
+             outrights = excluded.outrights,
+             updated_at = now()`,
+          [game.id, JSON.stringify(participants)],
+        );
+      } catch (err) {
+        errors.push(`${label} field: ${(err as Error).message}`);
+        continue;
+      }
+
+      gamesUpserted++;
+    }
+  }
+
+  return { gamesUpserted, errors };
+}
+
 export async function syncScoresForSport(
   db: Pool,
   sportKey: string,
@@ -174,6 +249,22 @@ export async function syncAllTrackedSports(db: Pool): Promise<SyncSummary[]> {
 
     summaries.push({ sport: label, gamesUpserted, gamesSettled, errors });
   }
+
+  const golfErrors: string[] = [];
+  let golfGamesUpserted = 0;
+  try {
+    const golfResult = await syncGolfOutrights(db);
+    golfGamesUpserted = golfResult.gamesUpserted;
+    golfErrors.push(...golfResult.errors);
+  } catch (err) {
+    golfErrors.push(`golf: ${(err as Error).message}`);
+  }
+  summaries.push({
+    sport: "Golf",
+    gamesUpserted: golfGamesUpserted,
+    gamesSettled: 0,
+    errors: golfErrors,
+  });
 
   return summaries;
 }

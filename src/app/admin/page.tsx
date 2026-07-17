@@ -6,6 +6,7 @@ import {
   createGameAction,
   createUserAction,
   settleGameAction,
+  settleOutrightAction,
 } from "./actions";
 import SyncButton from "./SyncButton";
 
@@ -20,8 +21,11 @@ type UserRow = {
 type GameRow = {
   id: string;
   sport: string;
-  home_team: string;
-  away_team: string;
+  event_type: string;
+  home_team: string | null;
+  away_team: string | null;
+  event_name: string | null;
+  winner_name: string | null;
   status: string;
   home_score: number | null;
   away_score: number | null;
@@ -29,6 +33,7 @@ type GameRow = {
   total: string | null;
   moneyline_home: number | null;
   moneyline_away: number | null;
+  outrights: { name: string; odds: number }[] | null;
 };
 
 export default async function AdminPage() {
@@ -48,8 +53,9 @@ export default async function AdminPage() {
       "select id, username, display_name, coin_balance, is_admin from users order by display_name",
     ),
     db.query<GameRow>(`
-      select g.id, g.sport, g.home_team, g.away_team, g.status, g.home_score, g.away_score,
-             l.spread, l.total, l.moneyline_home, l.moneyline_away
+      select g.id, g.sport, g.event_type, g.home_team, g.away_team, g.event_name,
+             g.winner_name, g.status, g.home_score, g.away_score,
+             l.spread, l.total, l.moneyline_home, l.moneyline_away, l.outrights
       from games g
       left join lines l on l.game_id = g.id
       order by g.start_time desc
@@ -133,9 +139,10 @@ export default async function AdminPage() {
         <p className="mb-4 text-sm text-slate-400">
           Pulls current lines from The Odds API for {" "}
           <span className="text-slate-300">
-            NFL, NCAAF, NBA, NCAAB, MLB &amp; NHL
+            NFL, NCAAF, NBA, NCAAB, MLB, NHL &amp; Golf majors
           </span>{" "}
-          and settles any finished games using live scores. Requires{" "}
+          and settles any finished games using live scores (golf tournament
+          winners are settled manually below instead). Requires{" "}
           <code className="rounded bg-slate-800 px-1">ODDS_API_KEY</code> to
           be set. For hands-off updates, set up the scheduled sync in the
           README instead of clicking this every time.
@@ -183,55 +190,86 @@ export default async function AdminPage() {
             </tr>
           </thead>
           <tbody>
-            {games.map((g) => (
-              <tr key={g.id} className="border-b border-slate-800/50">
-                <td className="py-2">
-                  {g.away_team} @ {g.home_team}
-                  <div className="text-xs text-slate-500">{g.sport}</div>
-                </td>
-                <td className="text-xs text-slate-400">
-                  {g.spread != null && <div>Spread: {g.spread}</div>}
-                  {g.total != null && <div>Total: {g.total}</div>}
-                  {g.moneyline_home != null && (
-                    <div>
-                      ML: {g.moneyline_home} / {g.moneyline_away}
-                    </div>
-                  )}
-                </td>
-                <td>{g.status}</td>
-                <td>
-                  {g.status === "final" ? (
-                    <span className="text-slate-400">
-                      {g.home_score} - {g.away_score}
-                    </span>
-                  ) : (
-                    <form action={settleGameAction} className="flex gap-2">
-                      <input type="hidden" name="gameId" value={g.id} />
-                      <input
-                        name="homeScore"
-                        type="number"
-                        placeholder="Home"
-                        required
-                        className="w-20 rounded-lg border border-slate-700 bg-slate-800 px-2 py-1"
-                      />
-                      <input
-                        name="awayScore"
-                        type="number"
-                        placeholder="Away"
-                        required
-                        className="w-20 rounded-lg border border-slate-700 bg-slate-800 px-2 py-1"
-                      />
-                      <button
-                        type="submit"
-                        className="rounded-lg bg-slate-700 px-3 py-1 hover:bg-slate-600"
-                      >
-                        Settle
-                      </button>
-                    </form>
-                  )}
-                </td>
-              </tr>
-            ))}
+            {games.map((g) => {
+              const isOutright = g.event_type === "outright";
+              return (
+                <tr key={g.id} className="border-b border-slate-800/50">
+                  <td className="py-2">
+                    {isOutright ? g.event_name : `${g.away_team} @ ${g.home_team}`}
+                    <div className="text-xs text-slate-500">{g.sport}</div>
+                  </td>
+                  <td className="text-xs text-slate-400">
+                    {isOutright ? (
+                      <div>{g.outrights?.length ?? 0} players</div>
+                    ) : (
+                      <>
+                        {g.spread != null && <div>Spread: {g.spread}</div>}
+                        {g.total != null && <div>Total: {g.total}</div>}
+                        {g.moneyline_home != null && (
+                          <div>
+                            ML: {g.moneyline_home} / {g.moneyline_away}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </td>
+                  <td>{g.status}</td>
+                  <td>
+                    {g.status === "final" ? (
+                      <span className="text-slate-400">
+                        {isOutright ? `Winner: ${g.winner_name}` : `${g.home_score} - ${g.away_score}`}
+                      </span>
+                    ) : isOutright ? (
+                      <form action={settleOutrightAction} className="flex gap-2">
+                        <input type="hidden" name="gameId" value={g.id} />
+                        <select
+                          name="winnerName"
+                          required
+                          className="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1"
+                        >
+                          <option value="">Winner…</option>
+                          {g.outrights?.map((p) => (
+                            <option key={p.name} value={p.name}>
+                              {p.name}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="submit"
+                          className="rounded-lg bg-slate-700 px-3 py-1 hover:bg-slate-600"
+                        >
+                          Settle
+                        </button>
+                      </form>
+                    ) : (
+                      <form action={settleGameAction} className="flex gap-2">
+                        <input type="hidden" name="gameId" value={g.id} />
+                        <input
+                          name="homeScore"
+                          type="number"
+                          placeholder="Home"
+                          required
+                          className="w-20 rounded-lg border border-slate-700 bg-slate-800 px-2 py-1"
+                        />
+                        <input
+                          name="awayScore"
+                          type="number"
+                          placeholder="Away"
+                          required
+                          className="w-20 rounded-lg border border-slate-700 bg-slate-800 px-2 py-1"
+                        />
+                        <button
+                          type="submit"
+                          className="rounded-lg bg-slate-700 px-3 py-1 hover:bg-slate-600"
+                        >
+                          Settle
+                        </button>
+                      </form>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </section>

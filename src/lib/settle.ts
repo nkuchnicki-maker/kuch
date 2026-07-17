@@ -14,6 +14,25 @@ type PendingPick = {
   moneyline_away: number | null;
 };
 
+async function creditOutcome(
+  db: Pool,
+  pick: { id: string; user_id: string; wager: string; potential_payout: string },
+  outcome: "win" | "push",
+) {
+  const amount = outcome === "win" ? pick.potential_payout : pick.wager;
+  const reason = outcome === "win" ? "pick_payout" : "pick_refund";
+
+  await db.query(
+    `insert into coin_transactions (user_id, amount, reason, related_pick_id)
+     values ($1, $2, $3, $4)`,
+    [pick.user_id, amount, reason, pick.id],
+  );
+  await db.query(
+    "update users set coin_balance = coin_balance + $1 where id = $2",
+    [amount, pick.user_id],
+  );
+}
+
 // Settles every pending pick on a game against its final score: marks
 // win/loss/push, credits payouts/refunds, and updates coin balances.
 // Used both by the admin's manual "Settle" button and the automated
@@ -68,27 +87,49 @@ export async function settlePicksForGame(
       [outcome, pick.id],
     );
 
-    if (outcome === "win") {
-      await db.query(
-        `insert into coin_transactions (user_id, amount, reason, related_pick_id)
-         values ($1, $2, 'pick_payout', $3)`,
-        [pick.user_id, pick.potential_payout, pick.id],
-      );
-      await db.query(
-        "update users set coin_balance = coin_balance + $1 where id = $2",
-        [pick.potential_payout, pick.user_id],
-      );
-    } else if (outcome === "push") {
-      await db.query(
-        `insert into coin_transactions (user_id, amount, reason, related_pick_id)
-         values ($1, $2, 'pick_refund', $3)`,
-        [pick.user_id, pick.wager, pick.id],
-      );
-      await db.query(
-        "update users set coin_balance = coin_balance + $1 where id = $2",
-        [pick.wager, pick.user_id],
-      );
+    if (outcome === "win" || outcome === "push") {
+      await creditOutcome(db, pick, outcome);
     }
     // loss: wager was already debited at pick time, nothing further to do
+  }
+}
+
+// Settles an outright event (e.g. a golf tournament): every pick naming
+// the declared winner wins, everyone else loses. No push case — if a
+// tournament ends in a tie/playoff, settle against the eventual champion.
+export async function settleOutrightEvent(
+  db: Pool,
+  gameId: string,
+  winnerName: string,
+) {
+  await db.query(
+    "update games set status = 'final', winner_name = $1 where id = $2",
+    [winnerName, gameId],
+  );
+
+  const { rows: picks } = await db.query<{
+    id: string;
+    user_id: string;
+    pick_side: string;
+    wager: string;
+    potential_payout: string;
+  }>(
+    `select id, user_id, pick_side, wager, potential_payout
+     from picks
+     where game_id = $1 and status = 'pending' and pick_type = 'outright'`,
+    [gameId],
+  );
+
+  for (const pick of picks) {
+    const outcome = pick.pick_side === winnerName ? "win" : "loss";
+
+    await db.query(
+      "update picks set status = $1, settled_at = now() where id = $2",
+      [outcome, pick.id],
+    );
+
+    if (outcome === "win") {
+      await creditOutcome(db, pick, outcome);
+    }
   }
 }

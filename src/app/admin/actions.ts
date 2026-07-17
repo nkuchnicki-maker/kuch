@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireAdmin, hashPassword } from "@/lib/auth";
-import { settlePicksForGame } from "@/lib/settle";
+import { settlePicksForGame, settleOutrightEvent } from "@/lib/settle";
 import { syncAllTrackedSports, type SyncSummary } from "@/lib/sync";
 
 export async function createUserAction(formData: FormData) {
@@ -124,6 +124,20 @@ export async function settleGameAction(formData: FormData) {
   const awayScore = Number(formData.get("awayScore"));
 
   await settlePicksForGame(db, gameId, homeScore, awayScore);
+
+  revalidatePath("/admin");
+  revalidatePath("/leaderboard");
+  revalidatePath("/lines");
+}
+
+export async function settleOutrightAction(formData: FormData) {
+  await requireAdmin();
+
+  const gameId = String(formData.get("gameId"));
+  const winnerName = String(formData.get("winnerName"));
+  if (!winnerName) throw new Error("Pick the tournament winner");
+
+  await settleOutrightEvent(db, gameId, winnerName);
 
   revalidatePath("/admin");
   revalidatePath("/leaderboard");
