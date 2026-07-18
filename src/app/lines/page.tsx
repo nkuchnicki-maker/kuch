@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { STANDARD_JUICE } from "@/lib/odds";
@@ -31,12 +32,13 @@ type GameLineRow = {
 export default async function LinesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sport?: string }>;
+  searchParams: Promise<{ sport?: string; view?: string }>;
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const { sport: selectedSport = "" } = await searchParams;
+  const { sport: selectedSport = "", view = "upcoming" } = await searchParams;
+  const selectedView = view === "live" ? "live" : "upcoming";
 
   const { rows: allGames } = await db.query<GameLineRow>(`
     select g.id, g.sport, g.event_type, g.home_team, g.away_team, g.event_name, g.start_time,
@@ -45,13 +47,22 @@ export default async function LinesPage({
     from games g
     join lines l on l.game_id = g.id
     where g.status in ('scheduled', 'live')
-    order by (g.status = 'live') desc, g.start_time
+    order by g.start_time
   `);
 
-  const sports = [...new Set(allGames.map((g) => g.sport))].sort();
-  const games = selectedSport
+  const sportFilteredGames = selectedSport
     ? allGames.filter((g) => g.sport === selectedSport)
     : allGames;
+
+  const liveCount = sportFilteredGames.filter((g) => g.status === "live").length;
+  const upcomingCount = sportFilteredGames.filter((g) => g.status === "scheduled").length;
+
+  const sports = [...new Set(allGames.map((g) => g.sport))].sort();
+  const games = sportFilteredGames.filter((g) =>
+    selectedView === "live" ? g.status === "live" : g.status === "scheduled",
+  );
+
+  const sportQuery = selectedSport ? `&sport=${encodeURIComponent(selectedSport)}` : "";
 
   return (
     <BetSlipProvider>
@@ -68,6 +79,29 @@ export default async function LinesPage({
               <span className="text-xs text-slate-500">(play money)</span>
             </div>
           </div>
+        </div>
+
+        <div className="mb-4 flex gap-2">
+          <Link
+            href={`/lines?view=upcoming${sportQuery}`}
+            className={`rounded-lg px-4 py-2 text-sm font-semibold ${
+              selectedView === "upcoming"
+                ? "bg-emerald-500 text-slate-950"
+                : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+            }`}
+          >
+            Upcoming ({upcomingCount})
+          </Link>
+          <Link
+            href={`/lines?view=live${sportQuery}`}
+            className={`rounded-lg px-4 py-2 text-sm font-semibold ${
+              selectedView === "live"
+                ? "bg-red-500 text-slate-950"
+                : "bg-slate-800 text-slate-300 hover:bg-slate-700"
+            }`}
+          >
+            Live ({liveCount})
+          </Link>
         </div>
 
         <div className="grid gap-4">
@@ -192,9 +226,13 @@ export default async function LinesPage({
             })
           ) : (
             <p className="text-slate-400">
-              {selectedSport
-                ? `No ${selectedSport} games open right now.`
-                : "No games open right now — ask your admin to add some."}
+              {selectedView === "live"
+                ? selectedSport
+                  ? `No ${selectedSport} games live right now.`
+                  : "No games live right now."
+                : selectedSport
+                  ? `No upcoming ${selectedSport} games right now.`
+                  : "No upcoming games right now — ask your admin to add some."}
             </p>
           )}
         </div>
