@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
-import { payoutForOdds, STANDARD_JUICE } from "@/lib/odds";
+import { americanToDecimal, payoutForOdds, STANDARD_JUICE } from "@/lib/odds";
 
 export async function placePickAction(formData: FormData) {
   const user = await requireUser();
@@ -69,6 +69,118 @@ export async function placePickAction(formData: FormData) {
       `insert into coin_transactions (user_id, amount, reason, related_pick_id)
        values ($1, $2, 'pick_wager', $3)`,
       [user.id, -wager, pickRows[0].id],
+    );
+
+    await client.query("commit");
+  } catch (err) {
+    await client.query("rollback");
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  revalidatePath("/lines");
+  revalidatePath("/leaderboard");
+  revalidatePath("/picks");
+}
+
+export type ParlayLegInput = {
+  gameId: string;
+  lineId: string;
+  pickType: string;
+  pickSide: string;
+};
+
+// Called directly from the bet slip client component (not a <form action>),
+// so it takes a plain argument rather than FormData.
+export async function placeParlayAction(legs: ParlayLegInput[], wager: number) {
+  const user = await requireUser();
+
+  if (!Array.isArray(legs) || legs.length < 2) {
+    throw new Error("A parlay needs at least 2 picks");
+  }
+  if (!Number.isFinite(wager) || wager <= 0) {
+    throw new Error("Wager must be a positive number");
+  }
+  if (new Set(legs.map((l) => l.gameId)).size !== legs.length) {
+    throw new Error("Can't include two picks from the same game in a parlay");
+  }
+
+  // Re-derive real odds server-side for every leg — never trust odds from
+  // the client, same principle as the single-pick actions above.
+  const resolvedLegs: (ParlayLegInput & { odds: number })[] = [];
+  for (const leg of legs) {
+    const { rows: gameRows } = await db.query<{ status: string }>(
+      "select status from games where id = $1",
+      [leg.gameId],
+    );
+    if (!gameRows[0] || gameRows[0].status !== "scheduled") {
+      throw new Error("One of your picks is no longer open");
+    }
+
+    let odds: number | null;
+    if (leg.pickType === "outright") {
+      const { rows } = await db.query<{
+        outrights: { name: string; odds: number }[] | null;
+      }>("select outrights from lines where id = $1", [leg.lineId]);
+      odds = rows[0]?.outrights?.find((p) => p.name === leg.pickSide)?.odds ?? null;
+    } else if (leg.pickType === "moneyline") {
+      const { rows } = await db.query<{
+        moneyline_home: number | null;
+        moneyline_away: number | null;
+      }>("select moneyline_home, moneyline_away from lines where id = $1", [
+        leg.lineId,
+      ]);
+      const line = rows[0];
+      odds = line ? (leg.pickSide === "home" ? line.moneyline_home : line.moneyline_away) : null;
+    } else {
+      odds = STANDARD_JUICE;
+    }
+
+    if (odds == null) throw new Error("Odds unavailable for one of your picks");
+    resolvedLegs.push({ ...leg, odds });
+  }
+
+  const combinedDecimal = resolvedLegs.reduce(
+    (acc, l) => acc * americanToDecimal(l.odds),
+    1,
+  );
+  const potentialPayout = wager * combinedDecimal;
+
+  const client = await db.connect();
+  try {
+    await client.query("begin");
+
+    const { rows: debited } = await client.query(
+      `update users set coin_balance = coin_balance - $1
+       where id = $2 and coin_balance >= $1
+       returning coin_balance`,
+      [wager, user.id],
+    );
+    if (debited.length === 0) {
+      throw new Error("Not enough coins for that wager");
+    }
+
+    const { rows: parlayRows } = await client.query<{ id: string }>(
+      `insert into parlays (user_id, wager, potential_payout)
+       values ($1, $2, $3)
+       returning id`,
+      [user.id, wager, potentialPayout],
+    );
+    const parlayId = parlayRows[0].id;
+
+    for (const leg of resolvedLegs) {
+      await client.query(
+        `insert into parlay_legs (parlay_id, game_id, line_id, pick_type, pick_side, odds)
+         values ($1, $2, $3, $4, $5, $6)`,
+        [parlayId, leg.gameId, leg.lineId, leg.pickType, leg.pickSide, leg.odds],
+      );
+    }
+
+    await client.query(
+      `insert into coin_transactions (user_id, amount, reason, related_parlay_id)
+       values ($1, $2, 'pick_wager', $3)`,
+      [user.id, -wager, parlayId],
     );
 
     await client.query("commit");

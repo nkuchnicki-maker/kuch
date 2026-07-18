@@ -29,6 +29,7 @@ create table if not exists coin_transactions (
   amount numeric not null, -- positive = credit, negative = debit
   reason text not null, -- 'admin_grant', 'pick_wager', 'pick_payout', 'pick_refund'
   related_pick_id uuid,
+  related_parlay_id uuid,
   created_by uuid references users(id), -- admin who made the change, null for system/settlement
   created_at timestamptz not null default now()
 );
@@ -90,6 +91,43 @@ alter table coin_transactions
 alter table coin_transactions
   add constraint coin_transactions_pick_fk
   foreign key (related_pick_id) references picks(id) on delete set null;
+
+-- ============================================================
+-- parlays: a single wager combining 2+ picks (legs) from different
+-- games/events. All legs must win for the parlay to pay out, at the
+-- combined (multiplied) odds of every leg.
+-- ============================================================
+create table if not exists parlays (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  wager numeric not null check (wager > 0),
+  potential_payout numeric not null, -- payout if every leg wins, shown at placement
+  status text not null default 'pending', -- pending | win | loss | push | cancelled
+  settled_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists parlay_legs (
+  id uuid primary key default gen_random_uuid(),
+  parlay_id uuid not null references parlays(id) on delete cascade,
+  game_id uuid not null references games(id) on delete cascade,
+  line_id uuid not null references lines(id),
+  pick_type text not null, -- 'spread' | 'total' | 'moneyline' | 'outright'
+  pick_side text not null,
+  odds integer not null, -- american odds captured at placement time
+  status text not null default 'pending', -- pending | win | loss | push
+  settled_at timestamptz
+);
+
+create index if not exists parlay_legs_game_id_pending_idx
+  on parlay_legs (game_id) where status = 'pending';
+create index if not exists parlay_legs_parlay_id_idx on parlay_legs (parlay_id);
+
+alter table coin_transactions
+  drop constraint if exists coin_transactions_parlay_fk;
+alter table coin_transactions
+  add constraint coin_transactions_parlay_fk
+  foreign key (related_parlay_id) references parlays(id) on delete set null;
 
 -- ============================================================
 -- Helpful view: current week standings (Mon-Sun, server tz = UTC)

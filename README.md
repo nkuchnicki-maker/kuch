@@ -15,6 +15,11 @@ rights and weekly leaderboards.
 - When a game finishes, its pending picks are settled automatically
   (win/loss/push) and balances update — either via the live score sync, or
   by you entering the final score in Admin.
+- Picks from different games can be combined into a parlay using the
+  floating bet slip on the Lines page ("+ Parlay" next to any option) — all
+  legs must win for it to pay out, at the combined odds. A parlay only
+  settles once every one of its legs' games has finished, even if that
+  takes days.
 
 Login is a simple email/password system built into the app itself
 (bcrypt-hashed passwords, signed session cookies) — no third-party auth
