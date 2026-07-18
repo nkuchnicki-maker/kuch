@@ -63,9 +63,11 @@ export async function syncOddsForSport(
       continue;
     }
 
-    // Don't move the line once the game has gone live/final — picks were
-    // placed against the pre-game number.
-    if (game.status !== "scheduled") continue;
+    // Keep refreshing the line while the game is scheduled or live so
+    // in-play betting has current odds. Once final, stop — existing picks
+    // already captured their own odds/payout at placement time regardless,
+    // so updating this table never changes a past pick's payout.
+    if (game.status !== "scheduled" && game.status !== "live") continue;
 
     const bookmaker = pickBookmaker(event.bookmakers);
     if (!bookmaker) continue;
@@ -221,6 +223,48 @@ export async function syncScoresForSport(
   }
 
   return { gamesSettled, errors };
+}
+
+// Refreshes odds only for sports that currently have at least one live
+// game in our database — skips The Odds API entirely for everything else,
+// so this costs ~0 credits on days with nothing in progress. Meant to be
+// run frequently (e.g. every 10-15 min) alongside the twice-daily full sync,
+// to keep in-play odds current without paying for a full sync at that cadence.
+export async function syncLiveOdds(db: Pool): Promise<SyncSummary[]> {
+  const { rows: liveSports } = await db.query<{ sport: string }>(
+    "select distinct sport from games where status = 'live'",
+  );
+  const liveSportLabels = new Set(liveSports.map((r) => r.sport));
+  const relevantSports = TRACKED_SPORTS.filter((s) => liveSportLabels.has(s.label));
+
+  const summaries: SyncSummary[] = [];
+  for (const { key, label } of relevantSports) {
+    const errors: string[] = [];
+    let gamesUpserted = 0;
+    let gamesSettled = 0;
+
+    try {
+      const oddsResult = await syncOddsForSport(db, key, label);
+      gamesUpserted = oddsResult.gamesUpserted;
+      errors.push(...oddsResult.errors);
+    } catch (err) {
+      errors.push(`live odds: ${(err as Error).message}`);
+    }
+
+    // Also check scores so games that just finished settle promptly
+    // instead of waiting for the next twice-daily full sync.
+    try {
+      const scoresResult = await syncScoresForSport(db, key);
+      gamesSettled = scoresResult.gamesSettled;
+      errors.push(...scoresResult.errors);
+    } catch (err) {
+      errors.push(`live scores: ${(err as Error).message}`);
+    }
+
+    summaries.push({ sport: label, gamesUpserted, gamesSettled, errors });
+  }
+
+  return summaries;
 }
 
 export async function syncAllTrackedSports(db: Pool): Promise<SyncSummary[]> {

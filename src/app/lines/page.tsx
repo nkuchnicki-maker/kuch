@@ -17,6 +17,9 @@ type GameLineRow = {
   away_team: string | null;
   event_name: string | null;
   start_time: string;
+  status: string;
+  home_score: number | null;
+  away_score: number | null;
   line_id: string;
   spread: string | null;
   total: string | null;
@@ -37,11 +40,12 @@ export default async function LinesPage({
 
   const { rows: allGames } = await db.query<GameLineRow>(`
     select g.id, g.sport, g.event_type, g.home_team, g.away_team, g.event_name, g.start_time,
+           g.status, g.home_score, g.away_score,
            l.id as line_id, l.spread, l.total, l.moneyline_home, l.moneyline_away, l.outrights
     from games g
     join lines l on l.game_id = g.id
-    where g.status = 'scheduled'
-    order by g.start_time
+    where g.status in ('scheduled', 'live')
+    order by (g.status = 'live') desc, g.start_time
   `);
 
   const sports = [...new Set(allGames.map((g) => g.sport))].sort();
@@ -110,10 +114,22 @@ export default async function LinesPage({
                       </span>
                       <h2 className="text-lg font-semibold">
                         {g.away_team} @ {g.home_team}
+                        {g.status === "live" && (
+                          <span className="ml-2 rounded bg-red-500/90 px-1.5 py-0.5 align-middle text-xs font-bold uppercase text-white">
+                            Live
+                          </span>
+                        )}
                       </h2>
+                      {g.status === "live" && g.home_score != null && g.away_score != null && (
+                        <div className="text-sm font-mono text-slate-300">
+                          {g.away_team} {g.away_score} — {g.home_team} {g.home_score}
+                        </div>
+                      )}
                     </div>
                     <span className="text-xs text-slate-500">
-                      {new Date(g.start_time).toLocaleString()}
+                      {g.status === "live"
+                        ? "In progress"
+                        : new Date(g.start_time).toLocaleString()}
                     </span>
                   </div>
 

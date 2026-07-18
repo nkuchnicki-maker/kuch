@@ -22,7 +22,7 @@ export async function placePickAction(formData: FormData) {
     "select status from games where id = $1",
     [gameId],
   );
-  if (!gameRows[0] || gameRows[0].status !== "scheduled") {
+  if (!gameRows[0] || !["scheduled", "live"].includes(gameRows[0].status)) {
     throw new Error("This game is no longer open for picks");
   }
 
@@ -114,7 +114,7 @@ export async function placeParlayAction(legs: ParlayLegInput[], wager: number) {
       "select status from games where id = $1",
       [leg.gameId],
     );
-    if (!gameRows[0] || gameRows[0].status !== "scheduled") {
+    if (!gameRows[0] || !["scheduled", "live"].includes(gameRows[0].status)) {
       throw new Error("One of your picks is no longer open");
     }
 

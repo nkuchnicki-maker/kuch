@@ -88,7 +88,9 @@ export default async function AdminPage() {
           </button>
         </form>
         <p className="mt-2 text-xs text-slate-500">
-          Share the email/password with them directly — there is no public sign-up.
+          They log in with their <strong>username</strong> and password
+          (not email) — share those with them directly. There is no public
+          sign-up.
         </p>
       </section>
 

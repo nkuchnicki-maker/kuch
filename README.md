@@ -148,24 +148,63 @@ To enable it:
 
 ### A note on the free tier's request budget
 
-The Odds API's free tier gives ~500 credits/month, and each odds request
-costs roughly 1 credit per market per region requested (this app requests
-3 markets — h2h, spreads, totals — in 1 region, so ~3 credits per sport per
-sync, plus a smaller cost for the scores check). With all 6 sports in
-`TRACKED_SPORTS` tracked, one full sync run costs roughly 24 credits — so
-even twice a day adds up to most of the monthly free budget. If you're
-close to the limit:
+The Odds API's free tier gives ~500 credits/month. Measured (not estimated)
+costs per call: an odds request (h2h + spreads + totals, 1 region) is
+**3 credits per sport**, a scores check is **2 credits per sport**, and a
+golf outrights request is **1 credit per tournament**. With all 6 sports +
+4 golf tournaments tracked, one full sync run costs **~34 credits**
+(6 × (3+2) + 4). Twice a day already exceeds the monthly free budget
+(60 runs × 34 = 2,040 credits vs. 500 available) — you'll likely exhaust
+the free tier well before the month resets. If you're close to the limit:
 
-- Widen the cron interval further in `sync-odds.yml` (e.g. once a day, or
-  every few days in the off-season for a given sport).
-- Track fewer sports in `TRACKED_SPORTS` — dropping to 2-3 sports lets you
+- Widen the cron interval further in `sync-odds.yml` (e.g. once every 2-3
+  days keeps you within budget with everything tracked).
+- Track fewer sports in `TRACKED_SPORTS` — dropping to 1-2 sports lets you
   sync much more often within the same budget.
 - Use the **"Sync live odds now"** button in Admin for on-demand refreshes
-  any time — it's free and uncapped by the cron schedule, so you can lean
-  on it around game time instead of a tighter automatic schedule.
+  any time — same shared budget, but at least it's your choice when to spend it.
 - Check your actual usage on the-odds-api.com's dashboard and tune from there.
+- Upgrade to a paid The Odds API plan (see [the-odds-api.com/pricing](https://the-odds-api.com/pricing))
+  for a much bigger credit budget if you want both broad sport coverage and
+  frequent syncing — that's a purchase you make directly on their site.
 
-True second-by-second "live" in-play odds aren't realistic on the free
-tier — this gets you periodic (e.g. half-hourly) line and score updates,
-which is enough for pre-game picks and same-day settlement. Manually
-entered lines remain available in Admin any time, with no API cost at all.
+Manually entered lines remain available in Admin any time, with no API
+cost at all.
+
+## Live (in-play) betting
+
+Games that have started aren't locked out — they show up on the Lines page
+with a **LIVE** badge and current score, and picks/parlays can still be
+placed against them using whatever odds were last synced.
+
+Keeping those odds genuinely fresh during a live game uses a **second,
+separate, more frequent sync** — [`syncLiveOdds`](src/lib/sync.ts) — wired
+to its own route (`/api/sync/live`) and cron
+([`.github/workflows/sync-live-odds.yml`](.github/workflows/sync-live-odds.yml),
+every 10 minutes by default). It only calls The Odds API for sports that
+currently have a live game in your database — on a day with nothing in
+progress it costs **0 credits** (just a cheap database check), so it doesn't
+compound the twice-daily full sync's cost when nothing's happening.
+
+The cost only shows up during an actual live window: each check that finds
+a live sport costs 5 credits (3 for odds + 2 for scores) for that sport.
+At a 10-minute interval, a single 3-hour game (e.g. an MLB game) means
+~18 checks × 5 credits = 90 credits for that one game's window — and that's
+on top of whatever the twice-daily full sync is already using. If you track
+sports with games most days (MLB in season, for example), this adds up fast
+on the free tier. To control it:
+
+- Widen `*/10 * * * *` to something like every 20-30 minutes in
+  `sync-live-odds.yml`.
+- Narrow `TRACKED_SPORTS` in `src/lib/sync.ts` to just the sport(s) you
+  actually want live odds for — the live sync reuses that same list.
+- Set up the GitHub Actions repo secrets (`APP_URL`, `SYNC_SECRET` — same
+  values as the full sync workflow) to actually enable this cron; without
+  them it simply never fires, and live games just keep the odds from
+  whenever you last ran a manual/full sync.
+- A paid Odds API plan removes the pressure entirely if you want tight,
+  frequent live updates across several sports at once.
+
+GitHub Actions' own scheduling isn't perfectly precise at short intervals
+either — expect firing times to drift by a few minutes, especially on the
+free tier.

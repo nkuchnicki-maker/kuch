@@ -10,24 +10,22 @@ export async function loginAction(
   _prevState: LoginState,
   formData: FormData,
 ): Promise<LoginState> {
-  const email = String(formData.get("email") || "")
-    .trim()
-    .toLowerCase();
+  const username = String(formData.get("username") || "").trim();
   const password = String(formData.get("password") || "");
 
-  if (!email || !password) {
-    return { error: "Email and password are required" };
+  if (!username || !password) {
+    return { error: "Username and password are required" };
   }
 
   const { rows } = await db.query<{
     id: string;
     password_hash: string;
     is_admin: boolean;
-  }>("select id, password_hash, is_admin from users where email = $1", [email]);
+  }>("select id, password_hash, is_admin from users where username = $1", [username]);
 
   const user = rows[0];
   if (!user || !(await verifyPassword(password, user.password_hash))) {
-    return { error: "Invalid email or password" };
+    return { error: "Invalid username or password" };
   }
 
   await setSessionCookie({ sub: user.id, isAdmin: user.is_admin });
