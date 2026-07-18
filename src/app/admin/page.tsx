@@ -9,6 +9,7 @@ import {
   settleOutrightAction,
 } from "./actions";
 import SyncButton from "./SyncButton";
+import { formatMoney } from "@/lib/format";
 
 type UserRow = {
   id: string;
@@ -79,7 +80,7 @@ export default async function AdminPage() {
             className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2" />
           <input name="displayName" type="text" placeholder="Display name" required
             className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2" />
-          <input name="startingCoins" type="number" defaultValue={1000} placeholder="Starting coins"
+          <input name="startingCoins" type="number" defaultValue={1000} placeholder="Starting balance ($)"
             className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 sm:col-span-2" />
           <button type="submit"
             className="rounded-lg bg-emerald-500 px-4 py-2 font-semibold text-slate-950 hover:bg-emerald-400">
@@ -92,7 +93,9 @@ export default async function AdminPage() {
       </section>
 
       <section className="mb-10 rounded-xl border border-slate-800 bg-slate-900 p-6">
-        <h2 className="mb-4 text-lg font-semibold">Users &amp; coin balances</h2>
+        <h2 className="mb-4 text-lg font-semibold">
+          Users &amp; balances <span className="text-xs font-normal text-slate-500">(play money)</span>
+        </h2>
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-slate-800 text-slate-400">
@@ -108,7 +111,7 @@ export default async function AdminPage() {
               <tr key={u.id} className="border-b border-slate-800/50">
                 <td className="py-2">{u.display_name}</td>
                 <td className="text-slate-400">@{u.username}</td>
-                <td className="font-mono text-emerald-400">{u.coin_balance}</td>
+                <td className="font-mono text-emerald-400">{formatMoney(u.coin_balance)}</td>
                 <td>{u.is_admin ? "Yes" : ""}</td>
                 <td>
                   <form action={adjustCoinsAction} className="flex gap-2">
@@ -116,7 +119,7 @@ export default async function AdminPage() {
                     <input
                       name="amount"
                       type="number"
-                      placeholder="+/- amount"
+                      placeholder="+/- $"
                       required
                       className="w-32 rounded-lg border border-slate-700 bg-slate-800 px-2 py-1"
                     />

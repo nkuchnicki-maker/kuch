@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { placePickAction, placeOutrightPickAction } from "./actions";
 import SportFilter from "./SportFilter";
+import { formatMoney } from "@/lib/format";
 
 type GameLineRow = {
   id: string;
@@ -53,8 +54,9 @@ export default async function LinesPage({
           <div className="text-sm text-slate-300">
             Your balance:{" "}
             <span className="font-mono text-emerald-400">
-              {user.coin_balance} coins
-            </span>
+              {formatMoney(user.coin_balance)}
+            </span>{" "}
+            <span className="text-xs text-slate-500">(play money)</span>
           </div>
         </div>
       </div>
@@ -217,7 +219,7 @@ function PickForm({
           name="wager"
           type="number"
           min={1}
-          placeholder="Coins"
+          placeholder="$ amount"
           required
           className="w-full rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-sm"
         />

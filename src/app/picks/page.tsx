@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import StatusBadge from "../components/StatusBadge";
+import { formatMoney } from "@/lib/format";
 
 type PickRow = {
   id: string;
@@ -65,7 +66,7 @@ export default async function MyPicksPage() {
               className={`font-mono font-semibold ${netAllTime >= 0 ? "text-emerald-400" : "text-red-400"}`}
             >
               {netAllTime >= 0 ? "+" : ""}
-              {netAllTime}
+              {formatMoney(netAllTime)}
             </span>
           </div>
         </div>
@@ -94,9 +95,9 @@ export default async function MyPicksPage() {
                   <td className="capitalize text-slate-300">
                     {p.pick_type} — {p.pick_side}
                   </td>
-                  <td className="font-mono">{p.wager}</td>
+                  <td className="font-mono">{formatMoney(p.wager)}</td>
                   <td className="font-mono text-slate-400">
-                    {p.potential_payout}
+                    {formatMoney(p.potential_payout)}
                   </td>
                   <td>
                     <StatusBadge status={p.status} />

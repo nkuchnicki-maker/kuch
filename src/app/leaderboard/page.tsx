@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import StatusBadge from "../components/StatusBadge";
+import { formatMoney } from "@/lib/format";
 
 type StandingRow = {
   user_id: string;
@@ -75,10 +76,10 @@ export default async function LeaderboardPage() {
                     }
                   >
                     {Number(s.net_this_week) >= 0 ? "+" : ""}
-                    {s.net_this_week}
+                    {formatMoney(s.net_this_week)}
                   </td>
                   <td className="font-mono text-slate-300">
-                    {s.coin_balance}
+                    {formatMoney(s.coin_balance)}
                   </td>
                 </tr>
               ))}
@@ -103,7 +104,8 @@ export default async function LeaderboardPage() {
                   {p.event_name ?? `${p.away_team} @ ${p.home_team}`}
                 </div>
                 <div className="text-xs text-slate-500">
-                  Wagered {p.wager} coins to win {p.potential_payout}
+                  Wagered {formatMoney(p.wager)} to win{" "}
+                  {formatMoney(p.potential_payout)}
                 </div>
               </li>
             ))}
