@@ -28,6 +28,8 @@ rights and weekly leaderboards.
   until a win brings it back up. Each person has a per-user **min balance**
   floor (default -$200) that blocks any new pick that would push them past
   it — see "Minimum balance" below.
+- Admin has a **History** page showing every user's balance at the end of
+  each past week, sortable by date/name/balance/net — see "History" below.
 
 Login is a simple email/password system built into the app itself
 (bcrypt-hashed passwords, signed session cookies) — no third-party auth
@@ -268,3 +270,17 @@ new wagers; it doesn't retroactively clamp a balance that dips lower from a
 pending bet settling as a loss (same as the weekly-reset carryover above —
 a big enough outstanding bet can still leave someone past their floor once
 it resolves).
+
+## History
+
+Admin has a **History** page (`/history`) listing every user's balance at
+the end of each past, already-reset week — click any column header
+(week/name/balance/net) to sort. The week still in progress isn't included
+here since it's already visible on the Leaderboard.
+
+There's no separate history table for this — it's reconstructed entirely
+from the `coin_transactions` audit log at request time: since every weekly
+reset writes the same timestamp for every user in one transaction, those
+distinct timestamps are the week boundaries, and a user's balance right
+before any boundary is just their current balance minus everything that
+happened at or after it (see [`src/lib/history.ts`](src/lib/history.ts)).

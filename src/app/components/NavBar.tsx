@@ -32,6 +32,11 @@ export default async function NavBar() {
             Admin
           </Link>
         )}
+        {user.is_admin && (
+          <Link href="/history" className="hover:text-white">
+            History
+          </Link>
+        )}
       </div>
       <div className="flex items-center gap-4">
         <span className="text-slate-500">{user.display_name}</span>
