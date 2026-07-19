@@ -31,8 +31,15 @@ export type WeeklyResetResult = {
 };
 
 // The actual reset: every user's coin_balance snaps back to their
-// starting_balance, and a 'weekly_reset' transaction records the delta
-// (even if $0) so there's always a marker for "when did this last happen."
+// starting_balance MINUS whatever they currently have tied up in
+// still-pending picks/parlays. That wager was already debited when they
+// placed the bet, so simply resetting to a flat starting_balance would
+// silently "forgive" it; subtracting it instead means the eventual
+// win/loss/push still lands correctly against the new week once it
+// settles, using the exact same settlement code as any other pick — a
+// loss really costs the new week's balance, a win nets out to the right
+// profit, and this can legitimately leave someone starting the week
+// negative if they had a big bet outstanding.
 async function resetAllBalances(db: Pool): Promise<number> {
   const client = await db.connect();
   let usersReset = 0;
@@ -46,14 +53,22 @@ async function resetAllBalances(db: Pool): Promise<number> {
     }>("select id, coin_balance, starting_balance from users");
 
     for (const u of users) {
-      const delta = Number(u.starting_balance) - Number(u.coin_balance);
+      const { rows: exposureRows } = await client.query<{ pending_exposure: string }>(
+        `select
+           coalesce((select sum(wager) from picks where user_id = $1 and status = 'pending'), 0)
+           + coalesce((select sum(wager) from parlays where user_id = $1 and status = 'pending'), 0)
+           as pending_exposure`,
+        [u.id],
+      );
+      const pendingExposure = Number(exposureRows[0]?.pending_exposure ?? 0);
+      const target = Number(u.starting_balance) - pendingExposure;
+      const delta = target - Number(u.coin_balance);
+
       await client.query(
         `insert into coin_transactions (user_id, amount, reason) values ($1, $2, 'weekly_reset')`,
         [u.id, delta],
       );
-      await client.query("update users set coin_balance = starting_balance where id = $1", [
-        u.id,
-      ]);
+      await client.query("update users set coin_balance = $1 where id = $2", [target, u.id]);
       usersReset++;
     }
 

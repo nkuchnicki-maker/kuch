@@ -234,11 +234,14 @@ Nothing about picks, parlays, or their history gets deleted — every
 transaction ever recorded stays in `coin_transactions` forever, including
 the reset itself (so "how much did I win last week" is always
 reconstructable later even though there's no dedicated history page for
-it yet). One edge case worth knowing: a pick or parlay still pending
-exactly at the reset boundary (realistically only a very late Sunday Night
-Football game) has its wager "forgiven" by the reset — a loss won't count
-against the new week, but a win still pays out on top of the fresh
-balance. Ask if you'd rather those get voided/refunded instead.
+it yet). A pick or parlay still pending exactly at the reset boundary
+(realistically only a very late Sunday Night Football game) carries over
+properly instead of being forgiven: the reset subtracts whatever's still
+tied up in pending wagers from the fresh starting balance, so when that
+pick later settles, its win/loss/push lands against the new week exactly
+like any other pick — a loss really does cost you, a win nets out to the
+right profit, and it's possible to start a week negative if you had a big
+bet outstanding.
 
 Admin also has a **"Reset week now"** button for triggering this on demand
 (testing, or wanting to start a new week early) — same underlying reset,
