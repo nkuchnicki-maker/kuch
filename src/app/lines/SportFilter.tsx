@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 export default function SportFilter({
   sports,
   selected,
+  basePath = "/lines",
 }: {
   sports: string[];
   selected: string;
+  basePath?: string;
 }) {
   const router = useRouter();
 
@@ -16,7 +18,7 @@ export default function SportFilter({
       value={selected}
       onChange={(e) => {
         const value = e.target.value;
-        router.push(value ? `/lines?sport=${encodeURIComponent(value)}` : "/lines");
+        router.push(value ? `${basePath}?sport=${encodeURIComponent(value)}` : basePath);
       }}
       className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100"
     >

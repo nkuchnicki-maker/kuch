@@ -3,27 +3,24 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { STANDARD_JUICE } from "@/lib/odds";
 import { formatMoney } from "@/lib/format";
-import SportFilter from "./SportFilter";
-import PickForm from "./PickForm";
-import OutrightPickForm from "./OutrightPickForm";
+import SportFilter from "../lines/SportFilter";
+import PickForm from "../lines/PickForm";
 
-type GameLineRow = {
+type LiveGameRow = {
   id: string;
   sport: string;
-  event_type: string;
-  home_team: string | null;
-  away_team: string | null;
-  event_name: string | null;
-  start_time: string;
+  home_team: string;
+  away_team: string;
+  home_score: number | null;
+  away_score: number | null;
   line_id: string;
   spread: string | null;
   total: string | null;
   moneyline_home: number | null;
   moneyline_away: number | null;
-  outrights: { name: string; odds: number }[] | null;
 };
 
-export default async function LinesPage({
+export default async function LiveSportsPage({
   searchParams,
 }: {
   searchParams: Promise<{ sport?: string }>;
@@ -33,12 +30,14 @@ export default async function LinesPage({
 
   const { sport: selectedSport = "" } = await searchParams;
 
-  const { rows: allGames } = await db.query<GameLineRow>(`
-    select g.id, g.sport, g.event_type, g.home_team, g.away_team, g.event_name, g.start_time,
-           l.id as line_id, l.spread, l.total, l.moneyline_home, l.moneyline_away, l.outrights
+  // Golf never goes "live" (there's no such thing as a live score for a
+  // tournament winner), so this only ever deals with two-team matchups.
+  const { rows: allGames } = await db.query<LiveGameRow>(`
+    select g.id, g.sport, g.home_team, g.away_team, g.home_score, g.away_score,
+           l.id as line_id, l.spread, l.total, l.moneyline_home, l.moneyline_away
     from games g
     join lines l on l.game_id = g.id
-    where g.status = 'scheduled'
+    where g.status = 'live'
     order by g.start_time
   `);
 
@@ -50,9 +49,11 @@ export default async function LinesPage({
   return (
     <div className="min-h-screen bg-slate-950 p-6 text-slate-100">
       <div className="mb-8 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-emerald-400">Bettor Edge</h1>
+        <h1 className="text-2xl font-bold text-emerald-400">
+          Bettor Edge — Live
+        </h1>
         <div className="flex items-center gap-4">
-          <SportFilter sports={sports} selected={selectedSport} />
+          <SportFilter sports={sports} selected={selectedSport} basePath="/live-sports" />
           <div className="text-sm text-slate-300">
             Your balance:{" "}
             <span className="font-mono text-emerald-400">
@@ -66,33 +67,6 @@ export default async function LinesPage({
       <div className="grid gap-4">
         {games.length ? (
           games.map((g) => {
-            if (g.event_type === "outright") {
-              return (
-                <div
-                  key={g.id}
-                  className="rounded-xl border border-slate-800 bg-slate-900 p-5"
-                >
-                  <div className="mb-3 flex items-baseline justify-between">
-                    <div>
-                      <span className="text-xs uppercase text-slate-500">
-                        {g.sport}
-                      </span>
-                      <h2 className="text-lg font-semibold">{g.event_name}</h2>
-                    </div>
-                    <span className="text-xs text-slate-500">
-                      {new Date(g.start_time).toLocaleString()}
-                    </span>
-                  </div>
-                  <OutrightPickForm
-                    gameId={g.id}
-                    lineId={g.line_id}
-                    eventName={g.event_name ?? g.sport}
-                    participants={g.outrights ?? []}
-                  />
-                </div>
-              );
-            }
-
             const spread = g.spread != null ? Number(g.spread) : null;
             const total = g.total != null ? Number(g.total) : null;
             return (
@@ -107,11 +81,17 @@ export default async function LinesPage({
                     </span>
                     <h2 className="text-lg font-semibold">
                       {g.away_team} @ {g.home_team}
+                      <span className="ml-2 rounded bg-red-500/90 px-1.5 py-0.5 align-middle text-xs font-bold uppercase text-white">
+                        Live
+                      </span>
                     </h2>
+                    {g.home_score != null && g.away_score != null && (
+                      <div className="text-sm font-mono text-slate-300">
+                        {g.away_team} {g.away_score} — {g.home_team} {g.home_score}
+                      </div>
+                    )}
                   </div>
-                  <span className="text-xs text-slate-500">
-                    {new Date(g.start_time).toLocaleString()}
-                  </span>
+                  <span className="text-xs text-slate-500">In progress</span>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-3">
@@ -174,8 +154,8 @@ export default async function LinesPage({
         ) : (
           <p className="text-slate-400">
             {selectedSport
-              ? `No upcoming ${selectedSport} games right now.`
-              : "No upcoming games right now — ask your admin to add some."}
+              ? `No ${selectedSport} games live right now.`
+              : "No games live right now."}
           </p>
         )}
       </div>

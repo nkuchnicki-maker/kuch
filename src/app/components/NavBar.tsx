@@ -21,6 +21,9 @@ export default async function NavBar() {
         <Link href="/lines" className="hover:text-white">
           Lines
         </Link>
+        <Link href="/live-sports" className="hover:text-white">
+          Live Sports
+        </Link>
         <Link href="/picks" className="hover:text-white">
           My Picks
         </Link>
