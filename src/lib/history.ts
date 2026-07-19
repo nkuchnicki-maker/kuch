@@ -83,3 +83,53 @@ export async function getWeeklyHistory(db: Pool): Promise<WeeklyHistoryRow[]> {
 
   return history;
 }
+
+export type AgentSummary = {
+  agent: string;
+  totalNet: number;
+  users: {
+    userId: string;
+    username: string;
+    displayName: string;
+    balance: number;
+  }[];
+};
+
+// Groups every user by recruiting agent, with each agent's all-time net
+// (summed from the same per-week net figures shown in the weekly table)
+// and each of their users' current balance.
+export async function getAgentSummaries(
+  db: Pool,
+  history: WeeklyHistoryRow[],
+): Promise<AgentSummary[]> {
+  const { rows: users } = await db.query<{
+    id: string;
+    username: string;
+    display_name: string;
+    coin_balance: string;
+    agent: string;
+  }>("select id, username, display_name, coin_balance, agent from users order by display_name");
+
+  const netByUser = new Map<string, number>();
+  for (const row of history) {
+    netByUser.set(row.userId, (netByUser.get(row.userId) ?? 0) + row.netChange);
+  }
+
+  const byAgent = new Map<string, AgentSummary>();
+  for (const u of users) {
+    let summary = byAgent.get(u.agent);
+    if (!summary) {
+      summary = { agent: u.agent, totalNet: 0, users: [] };
+      byAgent.set(u.agent, summary);
+    }
+    summary.totalNet += netByUser.get(u.id) ?? 0;
+    summary.users.push({
+      userId: u.id,
+      username: u.username,
+      displayName: u.display_name,
+      balance: Number(u.coin_balance),
+    });
+  }
+
+  return [...byAgent.values()];
+}

@@ -12,6 +12,7 @@ import {
 import SyncButton from "./SyncButton";
 import ResetWeekButton from "./ResetWeekButton";
 import { formatMoney } from "@/lib/format";
+import { AGENTS } from "@/lib/agents";
 
 type UserRow = {
   id: string;
@@ -19,6 +20,7 @@ type UserRow = {
   display_name: string;
   coin_balance: string;
   min_balance: string;
+  agent: string;
   is_admin: boolean;
 };
 
@@ -54,7 +56,7 @@ export default async function AdminPage() {
 
   const [{ rows: users }, { rows: games }] = await Promise.all([
     db.query<UserRow>(
-      "select id, username, display_name, coin_balance, min_balance, is_admin from users order by display_name",
+      "select id, username, display_name, coin_balance, min_balance, agent, is_admin from users order by display_name",
     ),
     db.query<GameRow>(`
       select g.id, g.sport, g.event_type, g.home_team, g.away_team, g.event_name,
@@ -75,14 +77,18 @@ export default async function AdminPage() {
       <section className="mb-10 rounded-xl border border-slate-800 bg-slate-900 p-6">
         <h2 className="mb-4 text-lg font-semibold">Create a new user</h2>
         <form action={createUserAction} className="grid gap-3 sm:grid-cols-6">
-          <input name="email" type="email" placeholder="Email" required
-            className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 sm:col-span-2" />
           <input name="password" type="text" placeholder="Temp password" required
             className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2" />
           <input name="username" type="text" placeholder="Username" required
             className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2" />
           <input name="displayName" type="text" placeholder="Display name" required
             className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2" />
+          <select name="agent" defaultValue="OWN" required
+            className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2">
+            {AGENTS.map((a) => (
+              <option key={a} value={a}>{a}</option>
+            ))}
+          </select>
           <input name="startingCoins" type="number" defaultValue={0} placeholder="Starting balance ($)"
             className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2" />
           <input name="minBalance" type="number" max={0} defaultValue={-200} placeholder="Min balance ($)"
@@ -93,11 +99,12 @@ export default async function AdminPage() {
           </button>
         </form>
         <p className="mt-2 text-xs text-slate-500">
-          They log in with their <strong>username</strong> and password
-          (not email) — share those with them directly. There is no public
-          sign-up. <strong>Min balance</strong> is how far into the negative
-          they can wager before picks get blocked (e.g. -200) — tune it per
-          person any time from the table below.
+          They log in with their <strong>username</strong> and password —
+          share those with them directly. There is no public sign-up.{" "}
+          <strong>Agent</strong> is who recruited them (used for the
+          breakdown on the History page). <strong>Min balance</strong> is
+          how far into the negative they can wager before picks get blocked
+          (e.g. -200) — tune it per person any time from the table below.
         </p>
       </section>
 
@@ -110,6 +117,7 @@ export default async function AdminPage() {
             <tr className="border-b border-slate-800 text-slate-400">
               <th className="py-2">Name</th>
               <th>Username</th>
+              <th>Agent</th>
               <th>Balance</th>
               <th>Min balance</th>
               <th>Admin</th>
@@ -122,6 +130,7 @@ export default async function AdminPage() {
               <tr key={u.id} className="border-b border-slate-800/50">
                 <td className="py-2">{u.display_name}</td>
                 <td className="text-slate-400">@{u.username}</td>
+                <td className="text-slate-400">{u.agent}</td>
                 <td className="font-mono text-emerald-400">{formatMoney(u.coin_balance)}</td>
                 <td className="font-mono text-red-400">{formatMoney(u.min_balance)}</td>
                 <td>{u.is_admin ? "Yes" : ""}</td>

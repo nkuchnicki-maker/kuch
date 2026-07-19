@@ -7,7 +7,8 @@ rights and weekly leaderboards.
 ## How it works
 
 - You (the admin) create a login for each friend and give them a starting
-  coin balance. There's no public sign-up.
+  coin balance. There's no public sign-up. Each new user is credited to a
+  recruiting **agent** (`OWN`, `MJ`, or `BO`) for reporting on History.
 - Games and lines (spread/total/moneyline) can be added manually in Admin,
   or pulled in automatically from a live odds feed (see below).
 - Friends log in, place picks against the lines using their coins, and see
@@ -284,3 +285,9 @@ reset writes the same timestamp for every user in one transaction, those
 distinct timestamps are the week boundaries, and a user's balance right
 before any boundary is just their current balance minus everything that
 happened at or after it (see [`src/lib/history.ts`](src/lib/history.ts)).
+
+The page also shows an **all-time total** ticker (net across every
+completed week, everyone combined) and a **By agent** breakdown — one card
+per recruiting agent, each showing that agent's all-time net (summed from
+the same per-week net figures in the table below) and their recruited
+users' current balances.

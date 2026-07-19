@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireAdmin, hashPassword } from "@/lib/auth";
+import { isAgent } from "@/lib/agents";
 import { settlePicksForGame, settleOutrightEvent } from "@/lib/settle";
 import { syncAllTrackedSports, type SyncSummary } from "@/lib/sync";
 import { forceWeeklyReset, type WeeklyResetResult } from "@/lib/weeklyReset";
@@ -10,25 +11,32 @@ import { forceWeeklyReset, type WeeklyResetResult } from "@/lib/weeklyReset";
 export async function createUserAction(formData: FormData) {
   await requireAdmin();
 
-  const email = String(formData.get("email")).trim().toLowerCase();
   const password = String(formData.get("password"));
   const username = String(formData.get("username")).trim();
   const displayName = String(formData.get("displayName")).trim();
   const startingCoins = Number(formData.get("startingCoins")) || 0;
   const minBalanceRaw = Number(formData.get("minBalance"));
   const minBalance = Number.isFinite(minBalanceRaw) ? minBalanceRaw : -200;
+  const agent = String(formData.get("agent"));
 
+  if (!isAgent(agent)) {
+    throw new Error("Pick a valid agent");
+  }
+
+  // Login is username/password only — email is just a placeholder to
+  // satisfy the column's unique/not-null constraint, never shown or used.
+  const email = `${username.toLowerCase()}@bettoredge.local`;
   const passwordHash = await hashPassword(password);
 
   try {
     await db.query(
-      `insert into users (email, password_hash, username, display_name, coin_balance, starting_balance, min_balance)
-       values ($1, $2, $3, $4, $5, $5, $6)`,
-      [email, passwordHash, username, displayName, startingCoins, minBalance],
+      `insert into users (email, password_hash, username, display_name, coin_balance, starting_balance, min_balance, agent)
+       values ($1, $2, $3, $4, $5, $5, $6, $7)`,
+      [email, passwordHash, username, displayName, startingCoins, minBalance, agent],
     );
   } catch (err) {
     const message = (err as { code?: string; message: string }).code === "23505"
-      ? "That email or username is already taken"
+      ? "That username is already taken"
       : (err as Error).message;
     throw new Error(message);
   }
