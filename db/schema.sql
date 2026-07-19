@@ -17,6 +17,7 @@ create table if not exists users (
   display_name text not null,
   is_admin boolean not null default false,
   coin_balance numeric not null default 1000,
+  starting_balance numeric not null default 1000, -- balance restored every weekly reset
   created_at timestamptz not null default now()
 );
 
@@ -27,7 +28,7 @@ create table if not exists coin_transactions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references users(id) on delete cascade,
   amount numeric not null, -- positive = credit, negative = debit
-  reason text not null, -- 'admin_grant', 'pick_wager', 'pick_payout', 'pick_refund'
+  reason text not null, -- 'admin_grant', 'pick_wager', 'pick_payout', 'pick_refund', 'weekly_reset'
   related_pick_id uuid,
   related_parlay_id uuid,
   created_by uuid references users(id), -- admin who made the change, null for system/settlement
@@ -130,7 +131,11 @@ alter table coin_transactions
   foreign key (related_parlay_id) references parlays(id) on delete set null;
 
 -- ============================================================
--- Helpful view: current week standings (Mon-Sun, server tz = UTC)
+-- Helpful view: standings since each user's last weekly reset (see
+-- src/lib/weeklyReset.ts — resets happen at Sunday midnight America/
+-- New_York, not a fixed UTC boundary, so this can't just use Postgres's
+-- date_trunc('week', ...)). Falls back to account creation if a user
+-- has never been through a reset yet.
 -- ============================================================
 create or replace view weekly_standings as
 select
@@ -139,8 +144,12 @@ select
   u.display_name,
   u.coin_balance,
   coalesce(sum(ct.amount) filter (
-    where ct.created_at >= date_trunc('week', now())
+    where ct.created_at > coalesce(
+      (select max(ct2.created_at) from coin_transactions ct2
+       where ct2.user_id = u.id and ct2.reason = 'weekly_reset'),
+      u.created_at
+    )
   ), 0) as net_this_week
 from users u
 left join coin_transactions ct on ct.user_id = u.id
-group by u.id, u.username, u.display_name, u.coin_balance;
+group by u.id, u.username, u.display_name, u.coin_balance, u.created_at;

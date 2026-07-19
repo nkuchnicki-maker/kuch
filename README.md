@@ -20,6 +20,10 @@ rights and weekly leaderboards.
   legs must win for it to pay out, at the combined odds. A parlay only
   settles once every one of its legs' games has finished, even if that
   takes days.
+- Every Sunday at midnight Eastern time, everyone's balance resets to their
+  starting amount and the leaderboard starts fresh for a new week (see
+  "Weekly reset" below). Admin also has a manual "Reset week now" button
+  for testing or an early reset.
 
 Login is a simple email/password system built into the app itself
 (bcrypt-hashed passwords, signed session cookies) — no third-party auth
@@ -208,3 +212,34 @@ on the free tier. To control it:
 GitHub Actions' own scheduling isn't perfectly precise at short intervals
 either — expect firing times to drift by a few minutes, especially on the
 free tier.
+
+## Weekly reset
+
+Every user's `coin_balance` snaps back to their `starting_balance` (set when
+they were created in Admin) at the first check after Sunday midnight
+**America/New_York** — not a fixed UTC offset, so this stays correct
+automatically across the EST/EDT switch twice a year (see
+[`src/lib/weeklyReset.ts`](src/lib/weeklyReset.ts)).
+
+This is wired to [`.github/workflows/reset-week.yml`](.github/workflows/reset-week.yml),
+polling `/api/reset-week` every 15 minutes, every day. That sounds
+wasteful, but the route is a single cheap database check the rest of the
+week — no external API calls at all — so polling it constantly costs
+nothing. It only actually performs the reset once, on the first poll that
+lands on a Sunday (checked via a `weekly_reset` marker in
+`coin_transactions`, so it's safe to poll as often as you want without
+double-resetting).
+
+Nothing about picks, parlays, or their history gets deleted — every
+transaction ever recorded stays in `coin_transactions` forever, including
+the reset itself (so "how much did I win last week" is always
+reconstructable later even though there's no dedicated history page for
+it yet). One edge case worth knowing: a pick or parlay still pending
+exactly at the reset boundary (realistically only a very late Sunday Night
+Football game) has its wager "forgiven" by the reset — a loss won't count
+against the new week, but a win still pays out on top of the fresh
+balance. Ask if you'd rather those get voided/refunded instead.
+
+Admin also has a **"Reset week now"** button for triggering this on demand
+(testing, or wanting to start a new week early) — same underlying reset,
+just without the day-of-week gating.

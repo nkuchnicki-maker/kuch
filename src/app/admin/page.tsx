@@ -9,6 +9,7 @@ import {
   settleOutrightAction,
 } from "./actions";
 import SyncButton from "./SyncButton";
+import ResetWeekButton from "./ResetWeekButton";
 import { formatMoney } from "@/lib/format";
 
 type UserRow = {
@@ -137,6 +138,17 @@ export default async function AdminPage() {
             ))}
           </tbody>
         </table>
+      </section>
+
+      <section className="mb-10 rounded-xl border border-slate-800 bg-slate-900 p-6">
+        <h2 className="mb-4 text-lg font-semibold">Weekly reset</h2>
+        <p className="mb-4 text-sm text-slate-400">
+          Every Sunday at midnight Eastern time, everyone&apos;s balance
+          automatically resets to their starting amount and the leaderboard
+          starts fresh for the new week. Use this button to trigger that
+          early or for testing — it&apos;s the same reset, just on demand.
+        </p>
+        <ResetWeekButton />
       </section>
 
       <section className="mb-10 rounded-xl border border-slate-800 bg-slate-900 p-6">

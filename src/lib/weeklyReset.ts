@@ -1,0 +1,106 @@
+import "server-only";
+import type { Pool } from "pg";
+
+const RESET_TIMEZONE = "America/New_York";
+
+// Uses Intl's IANA timezone support rather than a fixed UTC offset, so this
+// stays correct across the EST/EDT switch automatically (no hardcoded
+// UTC-4/UTC-5 math to get wrong).
+function isSundayInTimeZone(now: Date): boolean {
+  const weekday = new Intl.DateTimeFormat("en-US", {
+    timeZone: RESET_TIMEZONE,
+    weekday: "short",
+  }).format(now);
+  return weekday === "Sun";
+}
+
+// yyyy-mm-dd in the target timezone — en-CA formats that way directly.
+function calendarDateInTimeZone(date: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: RESET_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+export type WeeklyResetResult = {
+  ran: boolean;
+  reason: string;
+  usersReset?: number;
+};
+
+// The actual reset: every user's coin_balance snaps back to their
+// starting_balance, and a 'weekly_reset' transaction records the delta
+// (even if $0) so there's always a marker for "when did this last happen."
+async function resetAllBalances(db: Pool): Promise<number> {
+  const client = await db.connect();
+  let usersReset = 0;
+  try {
+    await client.query("begin");
+
+    const { rows: users } = await client.query<{
+      id: string;
+      coin_balance: string;
+      starting_balance: string;
+    }>("select id, coin_balance, starting_balance from users");
+
+    for (const u of users) {
+      const delta = Number(u.starting_balance) - Number(u.coin_balance);
+      await client.query(
+        `insert into coin_transactions (user_id, amount, reason) values ($1, $2, 'weekly_reset')`,
+        [u.id, delta],
+      );
+      await client.query("update users set coin_balance = starting_balance where id = $1", [
+        u.id,
+      ]);
+      usersReset++;
+    }
+
+    await client.query("commit");
+  } catch (err) {
+    await client.query("rollback");
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  return usersReset;
+}
+
+// Resets every user's coin_balance back to their starting_balance once per
+// week, at the first check that lands on a Sunday (America/New_York) after
+// the previous reset. Idempotent — safe to call as often as you like; it
+// only actually resets once per Sunday, determined by the most recent
+// 'weekly_reset' coin_transaction across all users. This is the automated
+// path (see /api/reset-week and .github/workflows/reset-week.yml).
+export async function runWeeklyResetIfDue(db: Pool): Promise<WeeklyResetResult> {
+  const now = new Date();
+
+  if (!isSundayInTimeZone(now)) {
+    return { ran: false, reason: "not Sunday in America/New_York" };
+  }
+
+  const todayEt = calendarDateInTimeZone(now);
+
+  const { rows } = await db.query<{ last_reset: string | null }>(
+    `select max(created_at) as last_reset from coin_transactions where reason = 'weekly_reset'`,
+  );
+  const lastResetEt = rows[0]?.last_reset
+    ? calendarDateInTimeZone(new Date(rows[0].last_reset))
+    : null;
+
+  if (lastResetEt === todayEt) {
+    return { ran: false, reason: "already reset today" };
+  }
+
+  const usersReset = await resetAllBalances(db);
+  return { ran: true, reason: "reset complete", usersReset };
+}
+
+// Unconditional reset for the admin's manual "Reset week now" button —
+// ignores the day-of-week/idempotency gating that the automated path uses.
+export async function forceWeeklyReset(db: Pool): Promise<WeeklyResetResult> {
+  const usersReset = await resetAllBalances(db);
+  return { ran: true, reason: "manual reset", usersReset };
+}

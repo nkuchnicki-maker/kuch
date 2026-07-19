@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { requireAdmin, hashPassword } from "@/lib/auth";
 import { settlePicksForGame, settleOutrightEvent } from "@/lib/settle";
 import { syncAllTrackedSports, type SyncSummary } from "@/lib/sync";
+import { forceWeeklyReset, type WeeklyResetResult } from "@/lib/weeklyReset";
 
 export async function createUserAction(formData: FormData) {
   await requireAdmin();
@@ -19,8 +20,8 @@ export async function createUserAction(formData: FormData) {
 
   try {
     await db.query(
-      `insert into users (email, password_hash, username, display_name, coin_balance)
-       values ($1, $2, $3, $4, $5)`,
+      `insert into users (email, password_hash, username, display_name, coin_balance, starting_balance)
+       values ($1, $2, $3, $4, $5, $5)`,
       [email, passwordHash, username, displayName, startingCoins],
     );
   } catch (err) {
@@ -154,4 +155,16 @@ export async function syncNowAction(): Promise<SyncSummary[]> {
   revalidatePath("/leaderboard");
 
   return summaries;
+}
+
+export async function resetWeekAction(): Promise<WeeklyResetResult> {
+  await requireAdmin();
+
+  const result = await forceWeeklyReset(db);
+
+  revalidatePath("/admin");
+  revalidatePath("/leaderboard");
+  revalidatePath("/picks");
+
+  return result;
 }
