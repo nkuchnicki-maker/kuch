@@ -57,8 +57,8 @@ const passwordHash = await bcrypt.hash(password, 10);
 
 try {
   await pool.query(
-    `insert into users (email, password_hash, username, display_name, is_admin, coin_balance)
-     values ($1, $2, $3, $4, true, 1000)`,
+    `insert into users (email, password_hash, username, display_name, is_admin)
+     values ($1, $2, $3, $4, true)`,
     [email.toLowerCase().trim(), passwordHash, username.trim(), displayName.trim()],
   );
   console.log(`Admin user created: ${email}`);

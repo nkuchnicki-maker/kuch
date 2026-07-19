@@ -16,8 +16,9 @@ create table if not exists users (
   username text unique not null,
   display_name text not null,
   is_admin boolean not null default false,
-  coin_balance numeric not null default 1000,
-  starting_balance numeric not null default 1000, -- balance restored every weekly reset
+  coin_balance numeric not null default 0,
+  starting_balance numeric not null default 0, -- balance restored every weekly reset
+  min_balance numeric not null default -200, -- floor: can't wager past this (managers can tune it per user)
   created_at timestamptz not null default now()
 );
 

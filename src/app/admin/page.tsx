@@ -5,6 +5,7 @@ import {
   adjustCoinsAction,
   createGameAction,
   createUserAction,
+  setMinBalanceAction,
   settleGameAction,
   settleOutrightAction,
 } from "./actions";
@@ -17,6 +18,7 @@ type UserRow = {
   username: string;
   display_name: string;
   coin_balance: string;
+  min_balance: string;
   is_admin: boolean;
 };
 
@@ -52,7 +54,7 @@ export default async function AdminPage() {
 
   const [{ rows: users }, { rows: games }] = await Promise.all([
     db.query<UserRow>(
-      "select id, username, display_name, coin_balance, is_admin from users order by display_name",
+      "select id, username, display_name, coin_balance, min_balance, is_admin from users order by display_name",
     ),
     db.query<GameRow>(`
       select g.id, g.sport, g.event_type, g.home_team, g.away_team, g.event_name,
@@ -72,7 +74,7 @@ export default async function AdminPage() {
 
       <section className="mb-10 rounded-xl border border-slate-800 bg-slate-900 p-6">
         <h2 className="mb-4 text-lg font-semibold">Create a new user</h2>
-        <form action={createUserAction} className="grid gap-3 sm:grid-cols-5">
+        <form action={createUserAction} className="grid gap-3 sm:grid-cols-6">
           <input name="email" type="email" placeholder="Email" required
             className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 sm:col-span-2" />
           <input name="password" type="text" placeholder="Temp password" required
@@ -81,17 +83,21 @@ export default async function AdminPage() {
             className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2" />
           <input name="displayName" type="text" placeholder="Display name" required
             className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2" />
-          <input name="startingCoins" type="number" defaultValue={1000} placeholder="Starting balance ($)"
-            className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 sm:col-span-2" />
+          <input name="startingCoins" type="number" defaultValue={0} placeholder="Starting balance ($)"
+            className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2" />
+          <input name="minBalance" type="number" max={0} defaultValue={-200} placeholder="Min balance ($)"
+            className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2" />
           <button type="submit"
-            className="rounded-lg bg-emerald-500 px-4 py-2 font-semibold text-slate-950 hover:bg-emerald-400">
+            className="rounded-lg bg-emerald-500 px-4 py-2 font-semibold text-slate-950 hover:bg-emerald-400 sm:col-span-6">
             Create user
           </button>
         </form>
         <p className="mt-2 text-xs text-slate-500">
           They log in with their <strong>username</strong> and password
           (not email) — share those with them directly. There is no public
-          sign-up.
+          sign-up. <strong>Min balance</strong> is how far into the negative
+          they can wager before picks get blocked (e.g. -200) — tune it per
+          person any time from the table below.
         </p>
       </section>
 
@@ -105,8 +111,10 @@ export default async function AdminPage() {
               <th className="py-2">Name</th>
               <th>Username</th>
               <th>Balance</th>
+              <th>Min balance</th>
               <th>Admin</th>
               <th>Adjust coins</th>
+              <th>Set min balance</th>
             </tr>
           </thead>
           <tbody>
@@ -115,6 +123,7 @@ export default async function AdminPage() {
                 <td className="py-2">{u.display_name}</td>
                 <td className="text-slate-400">@{u.username}</td>
                 <td className="font-mono text-emerald-400">{formatMoney(u.coin_balance)}</td>
+                <td className="font-mono text-red-400">{formatMoney(u.min_balance)}</td>
                 <td>{u.is_admin ? "Yes" : ""}</td>
                 <td>
                   <form action={adjustCoinsAction} className="flex gap-2">
@@ -131,6 +140,26 @@ export default async function AdminPage() {
                       className="rounded-lg bg-slate-700 px-3 py-1 hover:bg-slate-600"
                     >
                       Apply
+                    </button>
+                  </form>
+                </td>
+                <td>
+                  <form action={setMinBalanceAction} className="flex gap-2">
+                    <input type="hidden" name="userId" value={u.id} />
+                    <input
+                      name="minBalance"
+                      type="number"
+                      max={0}
+                      defaultValue={u.min_balance}
+                      placeholder="e.g. -200"
+                      required
+                      className="w-32 rounded-lg border border-slate-700 bg-slate-800 px-2 py-1"
+                    />
+                    <button
+                      type="submit"
+                      className="rounded-lg bg-slate-700 px-3 py-1 hover:bg-slate-600"
+                    >
+                      Set
                     </button>
                   </form>
                 </td>

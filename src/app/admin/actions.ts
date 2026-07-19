@@ -14,15 +14,17 @@ export async function createUserAction(formData: FormData) {
   const password = String(formData.get("password"));
   const username = String(formData.get("username")).trim();
   const displayName = String(formData.get("displayName")).trim();
-  const startingCoins = Number(formData.get("startingCoins")) || 1000;
+  const startingCoins = Number(formData.get("startingCoins")) || 0;
+  const minBalanceRaw = Number(formData.get("minBalance"));
+  const minBalance = Number.isFinite(minBalanceRaw) ? minBalanceRaw : -200;
 
   const passwordHash = await hashPassword(password);
 
   try {
     await db.query(
-      `insert into users (email, password_hash, username, display_name, coin_balance, starting_balance)
-       values ($1, $2, $3, $4, $5, $5)`,
-      [email, passwordHash, username, displayName, startingCoins],
+      `insert into users (email, password_hash, username, display_name, coin_balance, starting_balance, min_balance)
+       values ($1, $2, $3, $4, $5, $5, $6)`,
+      [email, passwordHash, username, displayName, startingCoins, minBalance],
     );
   } catch (err) {
     const message = (err as { code?: string; message: string }).code === "23505"
@@ -51,13 +53,13 @@ export async function adjustCoinsAction(formData: FormData) {
 
     const { rows } = await client.query(
       `update users set coin_balance = coin_balance + $1
-       where id = $2 and coin_balance + $1 >= 0
+       where id = $2 and coin_balance + $1 >= min_balance
        returning coin_balance`,
       [amount, userId],
     );
 
     if (rows.length === 0) {
-      throw new Error("User not found, or balance cannot go negative");
+      throw new Error("User not found, or that would put them below their minimum balance");
     }
 
     await client.query(
@@ -76,6 +78,21 @@ export async function adjustCoinsAction(formData: FormData) {
 
   revalidatePath("/admin");
   revalidatePath("/leaderboard");
+}
+
+export async function setMinBalanceAction(formData: FormData) {
+  await requireAdmin();
+
+  const userId = String(formData.get("userId"));
+  const minBalance = Number(formData.get("minBalance"));
+
+  if (!Number.isFinite(minBalance) || minBalance > 0) {
+    throw new Error("Minimum balance must be zero or a negative number");
+  }
+
+  await db.query("update users set min_balance = $1 where id = $2", [minBalance, userId]);
+
+  revalidatePath("/admin");
 }
 
 export async function createGameAction(formData: FormData) {

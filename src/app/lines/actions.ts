@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { americanToDecimal, payoutForOdds, STANDARD_JUICE } from "@/lib/odds";
+import { debitForWager } from "@/lib/wager";
 
 export async function placePickAction(formData: FormData) {
   const user = await requireUser();
@@ -48,15 +49,7 @@ export async function placePickAction(formData: FormData) {
   try {
     await client.query("begin");
 
-    const { rows: debited } = await client.query(
-      `update users set coin_balance = coin_balance - $1
-       where id = $2 and coin_balance >= $1
-       returning coin_balance`,
-      [wager, user.id],
-    );
-    if (debited.length === 0) {
-      throw new Error("Not enough coins for that wager");
-    }
+    await debitForWager(client, user.id, wager);
 
     const { rows: pickRows } = await client.query<{ id: string }>(
       `insert into picks (user_id, game_id, line_id, pick_type, pick_side, wager, potential_payout)
@@ -151,15 +144,7 @@ export async function placeParlayAction(legs: ParlayLegInput[], wager: number) {
   try {
     await client.query("begin");
 
-    const { rows: debited } = await client.query(
-      `update users set coin_balance = coin_balance - $1
-       where id = $2 and coin_balance >= $1
-       returning coin_balance`,
-      [wager, user.id],
-    );
-    if (debited.length === 0) {
-      throw new Error("Not enough coins for that wager");
-    }
+    await debitForWager(client, user.id, wager);
 
     const { rows: parlayRows } = await client.query<{ id: string }>(
       `insert into parlays (user_id, wager, potential_payout)
@@ -231,15 +216,7 @@ export async function placeOutrightPickAction(formData: FormData) {
   try {
     await client.query("begin");
 
-    const { rows: debited } = await client.query(
-      `update users set coin_balance = coin_balance - $1
-       where id = $2 and coin_balance >= $1
-       returning coin_balance`,
-      [wager, user.id],
-    );
-    if (debited.length === 0) {
-      throw new Error("Not enough coins for that wager");
-    }
+    await debitForWager(client, user.id, wager);
 
     const { rows: pickRows } = await client.query<{ id: string }>(
       `insert into picks (user_id, game_id, line_id, pick_type, pick_side, wager, potential_payout)

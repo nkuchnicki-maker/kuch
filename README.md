@@ -21,9 +21,13 @@ rights and weekly leaderboards.
   settles once every one of its legs' games has finished, even if that
   takes days.
 - Every Sunday at midnight Eastern time, everyone's balance resets to their
-  starting amount and the leaderboard starts fresh for a new week (see
-  "Weekly reset" below). Admin also has a manual "Reset week now" button
-  for testing or an early reset.
+  starting amount (everyone starts at $0 by default) and the leaderboard
+  starts fresh for a new week (see "Weekly reset" below). Admin also has a
+  manual "Reset week now" button for testing or an early reset.
+- Since everyone starts at $0, wagers naturally take a balance negative
+  until a win brings it back up. Each person has a per-user **min balance**
+  floor (default -$200) that blocks any new pick that would push them past
+  it — see "Minimum balance" below.
 
 Login is a simple email/password system built into the app itself
 (bcrypt-hashed passwords, signed session cookies) — no third-party auth
@@ -77,8 +81,9 @@ npm install
 node scripts/create-admin.mjs you@example.com your-password yourname "Your Name"
 ```
 
-This creates the first user as an admin with 1000 starting coins. Everyone
-after this gets created through the app's Admin page instead.
+This creates the first user as an admin with a $0 starting balance (same as
+everyone else). Everyone after this gets created through the app's Admin
+page instead.
 
 ## Running locally
 
@@ -246,3 +251,20 @@ bet outstanding.
 Admin also has a **"Reset week now"** button for triggering this on demand
 (testing, or wanting to start a new week early) — same underlying reset,
 just without the day-of-week gating.
+
+## Minimum balance
+
+Everyone starts each week at **$0** by default (set in Admin's "Create a new
+user" form, or per-user's `starting_balance`), so placing a pick takes a
+balance negative right away — it only comes back up on a win. To stop that
+from spiraling, every user has a `min_balance` floor (default **-$200**):
+any pick or parlay that would drop their balance past it is rejected before
+it's placed, with a message telling them their limit.
+
+The floor is per-user, not global — each manager can set a different limit
+for each friend from the **"Set min balance"** column on the Admin users
+table (e.g. -200 for one friend, -500 for another). It only blocks *placing*
+new wagers; it doesn't retroactively clamp a balance that dips lower from a
+pending bet settling as a loss (same as the weekly-reset carryover above —
+a big enough outstanding bet can still leave someone past their floor once
+it resolves).
