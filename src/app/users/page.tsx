@@ -49,8 +49,7 @@ export default async function UsersPage() {
         Everyone&apos;s balance from last week and current free play. Free
         play is a separate spendable currency — a winning free-play pick
         only credits the profit to the real balance, a loss doesn&apos;t
-        touch it. Adjusting free play is limited to your own recruited
-        users; admins can adjust anyone&apos;s.
+        touch it. Only the admin can grant or adjust free play.
       </p>
 
       <section className="mb-8 rounded-xl border border-slate-800 bg-slate-900 p-6">
@@ -103,7 +102,7 @@ export default async function UsersPage() {
             {users.length ? (
               users.map((u) => {
                 const lastWeek = lastWeekBalanceByUser.get(u.id);
-                const canAdjust = viewer.is_admin || u.agent === viewer.agent;
+                const canAdjust = viewer.is_admin;
                 return (
                   <tr key={u.id} className="border-b border-slate-800/50">
                     <td className="py-2">{u.display_name}</td>

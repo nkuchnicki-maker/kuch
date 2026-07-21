@@ -303,18 +303,17 @@ The **Users** page (`/users`) is visible to admins and any account flagged
 balance from the last completed week (reusing the same data as History)
 and current free play — visibility isn't restricted by agent code.
 
-Two things *are* still scoped to an agent's own recruits (users where
-`agent` matches the agent's own agent code):
+Two things agents *can't* do, even though they can see this page:
 
-- **Adjusting free play** — an agent can only grant/adjust free play for
-  their own recruited users (shows "—" instead of a form for anyone else's
-  row); admins can adjust anyone's.
-- **Adding a new player** — the "Add a new player" form on this page is a
-  trimmed-down version of Admin's "Create a new user" (no email needed,
-  same as Admin): a non-admin agent's new player is automatically recruited
-  under that agent's own code, and they can't grant "Is agent" to the
-  account they're creating — both stay admin-only decisions, enforced
-  server-side even if someone tampered with the request.
+- **Grant or adjust free play** — only the admin can (shows "—" instead of
+  a form for agent viewers on every row, not just other agents' recruits).
+- **Pick a new player's recruiting agent, or grant "Is agent"** — the "Add
+  a new player" form on this page is a trimmed-down version of Admin's
+  "Create a new user" (no email needed, same as Admin): a non-admin agent's
+  new player is automatically recruited under that agent's own code, and
+  they can't flag the account they're creating as an agent itself — both
+  stay admin-only decisions, enforced server-side even if someone tampered
+  with the request.
 
 Flag an account as an agent from the **"Agent access"** column on the Admin
 users table, or the "Is agent" checkbox when creating a new user — it's
