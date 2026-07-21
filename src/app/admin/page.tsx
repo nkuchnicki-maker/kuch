@@ -12,6 +12,7 @@ import {
 } from "./actions";
 import SyncButton from "./SyncButton";
 import ResetWeekButton from "./ResetWeekButton";
+import DeleteUserButton from "./DeleteUserButton";
 import { formatMoney } from "@/lib/format";
 import { AGENTS } from "@/lib/agents";
 
@@ -132,6 +133,7 @@ export default async function AdminPage() {
               <th>Agent access</th>
               <th>Adjust coins</th>
               <th>Set min balance</th>
+              <th>Delete</th>
             </tr>
           </thead>
           <tbody>
@@ -192,6 +194,11 @@ export default async function AdminPage() {
                       Set
                     </button>
                   </form>
+                </td>
+                <td>
+                  {u.id !== user.id && (
+                    <DeleteUserButton userId={u.id} displayName={u.display_name} />
+                  )}
                 </td>
               </tr>
             ))}

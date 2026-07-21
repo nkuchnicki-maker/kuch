@@ -141,6 +141,26 @@ export async function setIsAgentAction(formData: FormData) {
   revalidatePath("/admin");
 }
 
+// Called directly from a client component (not a <form action>) so a
+// confirm() dialog can gate it before the request ever fires. Cascades to
+// the user's picks, parlays, and coin_transactions (existing FK
+// constraints) — this permanently erases their history, not just their
+// login.
+export async function deleteUserAction(userId: string) {
+  const adminUser = await requireAdmin();
+
+  if (userId === adminUser.id) {
+    throw new Error("You can't delete your own account");
+  }
+
+  await db.query("delete from users where id = $1", [userId]);
+
+  revalidatePath("/admin");
+  revalidatePath("/leaderboard");
+  revalidatePath("/history");
+  revalidatePath("/users");
+}
+
 export async function createGameAction(formData: FormData) {
   const adminUser = await requireAdmin();
 

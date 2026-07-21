@@ -30,7 +30,9 @@ export default async function HistoryPage() {
           <p className="mt-2 max-w-2xl text-sm text-slate-400">
             Every user&apos;s balance at the end of each past week (right
             before that week&apos;s reset), plus an all-time breakdown by
-            recruiting agent. The week still in progress is on the{" "}
+            recruiting agent. Pick a week from the dropdown below (defaults
+            to the most recent) and click a column to sort within it. The
+            week still in progress is on the{" "}
             <a href="/leaderboard" className="text-emerald-400 hover:underline">
               Leaderboard
             </a>{" "}

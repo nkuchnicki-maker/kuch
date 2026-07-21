@@ -12,7 +12,7 @@ type Row = {
   netChange: number;
 };
 
-type SortKey = "weekEnding" | "displayName" | "endingBalance" | "netChange";
+type SortKey = "displayName" | "endingBalance" | "netChange";
 
 function formatWeekEnding(iso: string): string {
   return new Intl.DateTimeFormat("en-US", {
@@ -48,70 +48,102 @@ function SortHeader({
 }
 
 export default function HistoryTable({ rows }: { rows: Row[] }) {
-  const [sortKey, setSortKey] = useState<SortKey>("weekEnding");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  // Distinct week-ending timestamps, most recent first — this also becomes
+  // the dropdown's option list.
+  const weeks = useMemo(() => {
+    const distinct = [...new Set(rows.map((r) => r.weekEnding))];
+    distinct.sort((a, b) => b.localeCompare(a));
+    return distinct;
+  }, [rows]);
+
+  const [selectedWeek, setSelectedWeek] = useState(weeks[0] ?? "");
+  const [sortKey, setSortKey] = useState<SortKey>("displayName");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   function toggleSort(key: SortKey) {
     if (key === sortKey) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     } else {
       setSortKey(key);
-      setSortDir(key === "weekEnding" ? "desc" : "asc");
+      setSortDir("asc");
     }
   }
 
+  const weekRows = useMemo(
+    () => rows.filter((r) => r.weekEnding === selectedWeek),
+    [rows, selectedWeek],
+  );
+
   const sorted = useMemo(() => {
-    const copy = [...rows];
+    const copy = [...weekRows];
     copy.sort((a, b) => {
-      let cmp: number;
-      if (sortKey === "displayName") cmp = a.displayName.localeCompare(b.displayName);
-      else if (sortKey === "weekEnding") cmp = a.weekEnding.localeCompare(b.weekEnding);
-      else cmp = a[sortKey] - b[sortKey];
+      const cmp =
+        sortKey === "displayName"
+          ? a.displayName.localeCompare(b.displayName)
+          : a[sortKey] - b[sortKey];
       return sortDir === "asc" ? cmp : -cmp;
     });
     return copy;
-  }, [rows, sortKey, sortDir]);
+  }, [weekRows, sortKey, sortDir]);
+
+  if (weeks.length === 0) {
+    return (
+      <p className="py-6 text-center text-slate-500">
+        No completed weeks yet — this fills in after the first weekly reset.
+      </p>
+    );
+  }
 
   return (
-    <table className="w-full text-left text-sm">
-      <thead>
-        <tr className="border-b border-slate-800 text-slate-400">
-          <SortHeader
-            label="Week ending"
-            sortKeyName="weekEnding"
-            activeKey={sortKey}
-            sortDir={sortDir}
-            onSort={toggleSort}
-          />
-          <SortHeader
-            label="Name"
-            sortKeyName="displayName"
-            activeKey={sortKey}
-            sortDir={sortDir}
-            onSort={toggleSort}
-          />
-          <SortHeader
-            label="Balance"
-            sortKeyName="endingBalance"
-            activeKey={sortKey}
-            sortDir={sortDir}
-            onSort={toggleSort}
-          />
-          <SortHeader
-            label="Net that week"
-            sortKeyName="netChange"
-            activeKey={sortKey}
-            sortDir={sortDir}
-            onSort={toggleSort}
-          />
-        </tr>
-      </thead>
-      <tbody>
-        {sorted.length ? (
-          sorted.map((r) => (
-            <tr key={`${r.userId}-${r.weekEnding}`} className="border-b border-slate-800/50">
-              <td className="py-2">{formatWeekEnding(r.weekEnding)}</td>
-              <td className="text-slate-300">{r.displayName}</td>
+    <div>
+      <div className="mb-4 flex items-center gap-2">
+        <label htmlFor="week-select" className="text-sm text-slate-400">
+          Week ending
+        </label>
+        <select
+          id="week-select"
+          value={selectedWeek}
+          onChange={(e) => setSelectedWeek(e.target.value)}
+          className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-sm"
+        >
+          {weeks.map((w) => (
+            <option key={w} value={w}>
+              {formatWeekEnding(w)}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <table className="w-full text-left text-sm">
+        <thead>
+          <tr className="border-b border-slate-800 text-slate-400">
+            <SortHeader
+              label="Name"
+              sortKeyName="displayName"
+              activeKey={sortKey}
+              sortDir={sortDir}
+              onSort={toggleSort}
+            />
+            <SortHeader
+              label="Balance"
+              sortKeyName="endingBalance"
+              activeKey={sortKey}
+              sortDir={sortDir}
+              onSort={toggleSort}
+            />
+            <SortHeader
+              label="Net that week"
+              sortKeyName="netChange"
+              activeKey={sortKey}
+              sortDir={sortDir}
+              onSort={toggleSort}
+            />
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((r) => (
+            <tr key={r.userId} className="border-b border-slate-800/50">
+              <td className="py-2 text-slate-300">{r.displayName}</td>
               <td className="font-mono text-emerald-400">{formatMoney(r.endingBalance)}</td>
               <td
                 className={`font-mono ${r.netChange >= 0 ? "text-emerald-400" : "text-red-400"}`}
@@ -120,15 +152,9 @@ export default function HistoryTable({ rows }: { rows: Row[] }) {
                 {formatMoney(r.netChange)}
               </td>
             </tr>
-          ))
-        ) : (
-          <tr>
-            <td colSpan={4} className="py-6 text-center text-slate-500">
-              No completed weeks yet — this fills in after the first weekly reset.
-            </td>
-          </tr>
-        )}
-      </tbody>
-    </table>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
