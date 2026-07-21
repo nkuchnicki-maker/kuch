@@ -3,17 +3,20 @@
 import { useState } from "react";
 import { placeOutrightPickAction } from "./actions";
 import { useBetSlip } from "./BetSlipContext";
+import { formatMoney } from "@/lib/format";
 
 export default function OutrightPickForm({
   gameId,
   lineId,
   eventName,
   participants,
+  freePlayBalance = 0,
 }: {
   gameId: string;
   lineId: string;
   eventName: string;
   participants: { name: string; odds: number }[];
+  freePlayBalance?: number;
 }) {
   const { addLeg } = useBetSlip();
   const [selected, setSelected] = useState("");
@@ -57,6 +60,12 @@ export default function OutrightPickForm({
         >
           Place
         </button>
+        {freePlayBalance > 0 && (
+          <label className="flex w-full items-center gap-1.5 text-xs text-amber-400">
+            <input type="checkbox" name="isFreePlay" value="true" className="accent-amber-400" />
+            Use free play ({formatMoney(freePlayBalance)} available)
+          </label>
+        )}
       </form>
       <button
         type="button"

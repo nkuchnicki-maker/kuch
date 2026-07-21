@@ -5,6 +5,7 @@ import {
   adjustCoinsAction,
   createGameAction,
   createUserAction,
+  setIsAgentAction,
   setMinBalanceAction,
   settleGameAction,
   settleOutrightAction,
@@ -22,6 +23,7 @@ type UserRow = {
   min_balance: string;
   agent: string;
   is_admin: boolean;
+  is_agent: boolean;
 };
 
 type GameRow = {
@@ -56,7 +58,7 @@ export default async function AdminPage() {
 
   const [{ rows: users }, { rows: games }] = await Promise.all([
     db.query<UserRow>(
-      "select id, username, display_name, coin_balance, min_balance, agent, is_admin from users order by display_name",
+      "select id, username, display_name, coin_balance, min_balance, agent, is_admin, is_agent from users order by display_name",
     ),
     db.query<GameRow>(`
       select g.id, g.sport, g.event_type, g.home_team, g.away_team, g.event_name,
@@ -93,6 +95,10 @@ export default async function AdminPage() {
             className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2" />
           <input name="minBalance" type="number" max={0} defaultValue={-200} placeholder="Min balance ($)"
             className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2" />
+          <label className="flex items-center gap-2 text-sm text-slate-300">
+            <input type="checkbox" name="isAgent" value="true" className="accent-emerald-500" />
+            Is agent (can view Users page)
+          </label>
           <button type="submit"
             className="rounded-lg bg-emerald-500 px-4 py-2 font-semibold text-slate-950 hover:bg-emerald-400 sm:col-span-6">
             Create user
@@ -104,7 +110,9 @@ export default async function AdminPage() {
           <strong>Agent</strong> is who recruited them (used for the
           breakdown on the History page). <strong>Min balance</strong> is
           how far into the negative they can wager before picks get blocked
-          (e.g. -200) — tune it per person any time from the table below.
+          (e.g. -200) — tune it per person any time from the table below.{" "}
+          <strong>Is agent</strong> lets them view the Users page (their own
+          recruited users only) to track free play.
         </p>
       </section>
 
@@ -121,6 +129,7 @@ export default async function AdminPage() {
               <th>Balance</th>
               <th>Min balance</th>
               <th>Admin</th>
+              <th>Agent access</th>
               <th>Adjust coins</th>
               <th>Set min balance</th>
             </tr>
@@ -134,6 +143,18 @@ export default async function AdminPage() {
                 <td className="font-mono text-emerald-400">{formatMoney(u.coin_balance)}</td>
                 <td className="font-mono text-red-400">{formatMoney(u.min_balance)}</td>
                 <td>{u.is_admin ? "Yes" : ""}</td>
+                <td>
+                  <form action={setIsAgentAction}>
+                    <input type="hidden" name="userId" value={u.id} />
+                    <input type="hidden" name="isAgent" value={(!u.is_agent).toString()} />
+                    <button
+                      type="submit"
+                      className="whitespace-nowrap rounded-lg bg-slate-700 px-3 py-1 hover:bg-slate-600"
+                    >
+                      {u.is_agent ? "Remove agent" : "Make agent"}
+                    </button>
+                  </form>
+                </td>
                 <td>
                   <form action={adjustCoinsAction} className="flex gap-2">
                     <input type="hidden" name="userId" value={u.id} />

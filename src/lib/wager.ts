@@ -33,3 +33,20 @@ export async function debitForWager(
     userId,
   ]);
 }
+
+// Debits a wager from a user's free_play balance instead of coin_balance —
+// no min_balance floor applies since free play was never real money;
+// it simply can't go negative. Must be called inside an open transaction.
+export async function debitFreePlay(
+  client: PoolClient,
+  userId: string,
+  wager: number,
+): Promise<void> {
+  const { rows } = await client.query(
+    "update users set free_play = free_play - $1 where id = $2 and free_play >= $1 returning free_play",
+    [wager, userId],
+  );
+  if (rows.length === 0) {
+    throw new Error("Not enough free play for that wager");
+  }
+}

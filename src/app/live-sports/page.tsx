@@ -60,6 +60,15 @@ export default async function LiveSportsPage({
               {formatMoney(user.coin_balance)}
             </span>{" "}
             <span className="text-xs text-slate-500">(play money)</span>
+            {Number(user.free_play) > 0 && (
+              <>
+                {" "}
+                · Free play:{" "}
+                <span className="font-mono text-amber-400">
+                  {formatMoney(user.free_play)}
+                </span>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -113,6 +122,7 @@ export default async function LiveSportsPage({
                           odds: STANDARD_JUICE,
                         },
                       ]}
+                      freePlayBalance={Number(user.free_play)}
                     />
                   )}
                   {total != null && (
@@ -125,6 +135,7 @@ export default async function LiveSportsPage({
                         { value: "over", label: `Over ${total}`, odds: STANDARD_JUICE },
                         { value: "under", label: `Under ${total}`, odds: STANDARD_JUICE },
                       ]}
+                      freePlayBalance={Number(user.free_play)}
                     />
                   )}
                   {g.moneyline_home != null && g.moneyline_away != null && (
@@ -145,6 +156,7 @@ export default async function LiveSportsPage({
                           odds: g.moneyline_away,
                         },
                       ]}
+                      freePlayBalance={Number(user.free_play)}
                     />
                   )}
                 </div>

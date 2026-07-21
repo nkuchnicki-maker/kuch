@@ -44,7 +44,10 @@ export type CurrentUser = {
   username: string;
   display_name: string;
   is_admin: boolean;
+  is_agent: boolean;
+  agent: string;
   coin_balance: string;
+  free_play: string;
 };
 
 // Full DB-backed lookup: use in Server Components/Actions where you need
@@ -58,7 +61,8 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   if (!session) return null;
 
   const { rows } = await db.query<CurrentUser>(
-    "select id, email, username, display_name, is_admin, coin_balance from users where id = $1",
+    `select id, email, username, display_name, is_admin, is_agent, agent, coin_balance, free_play
+     from users where id = $1`,
     [session.sub],
   );
 
@@ -74,5 +78,11 @@ export async function requireUser(): Promise<CurrentUser> {
 export async function requireAdmin(): Promise<CurrentUser> {
   const user = await requireUser();
   if (!user.is_admin) throw new Error("Not an admin");
+  return user;
+}
+
+export async function requireAdminOrAgent(): Promise<CurrentUser> {
+  const user = await requireUser();
+  if (!user.is_admin && !user.is_agent) throw new Error("Not an admin or agent");
   return user;
 }

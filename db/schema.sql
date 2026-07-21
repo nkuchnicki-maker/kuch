@@ -20,6 +20,8 @@ create table if not exists users (
   starting_balance numeric not null default 0, -- balance restored every weekly reset
   min_balance numeric not null default -200, -- floor: can't wager past this (managers can tune it per user)
   agent text not null default 'OWN' check (agent in ('OWN', 'MJ', 'BO')), -- who recruited this user
+  free_play numeric not null default 0, -- separate spendable currency, doesn't reset weekly
+  is_agent boolean not null default false, -- can view /users (own agent's recruits only)
   created_at timestamptz not null default now()
 );
 
@@ -84,6 +86,7 @@ create table if not exists picks (
   pick_side text not null, -- 'home' | 'away' | 'over' | 'under' | a participant's name (outright)
   wager numeric not null check (wager > 0),
   potential_payout numeric not null,
+  is_free_play boolean not null default false, -- paid with free play, not coin_balance
   status text not null default 'pending', -- pending | win | loss | push | cancelled
   settled_at timestamptz,
   created_at timestamptz not null default now()
@@ -105,6 +108,7 @@ create table if not exists parlays (
   user_id uuid not null references users(id) on delete cascade,
   wager numeric not null check (wager > 0),
   potential_payout numeric not null, -- payout if every leg wins, shown at placement
+  is_free_play boolean not null default false, -- paid with free play, not coin_balance
   status text not null default 'pending', -- pending | win | loss | push | cancelled
   settled_at timestamptz,
   created_at timestamptz not null default now()

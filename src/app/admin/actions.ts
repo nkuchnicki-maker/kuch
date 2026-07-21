@@ -18,6 +18,7 @@ export async function createUserAction(formData: FormData) {
   const minBalanceRaw = Number(formData.get("minBalance"));
   const minBalance = Number.isFinite(minBalanceRaw) ? minBalanceRaw : -200;
   const agent = String(formData.get("agent"));
+  const isAgentAccount = formData.get("isAgent") === "true";
 
   if (!isAgent(agent)) {
     throw new Error("Pick a valid agent");
@@ -30,9 +31,9 @@ export async function createUserAction(formData: FormData) {
 
   try {
     await db.query(
-      `insert into users (email, password_hash, username, display_name, coin_balance, starting_balance, min_balance, agent)
-       values ($1, $2, $3, $4, $5, $5, $6, $7)`,
-      [email, passwordHash, username, displayName, startingCoins, minBalance, agent],
+      `insert into users (email, password_hash, username, display_name, coin_balance, starting_balance, min_balance, agent, is_agent)
+       values ($1, $2, $3, $4, $5, $5, $6, $7, $8)`,
+      [email, passwordHash, username, displayName, startingCoins, minBalance, agent, isAgentAccount],
     );
   } catch (err) {
     const message = (err as { code?: string; message: string }).code === "23505"
@@ -99,6 +100,17 @@ export async function setMinBalanceAction(formData: FormData) {
   }
 
   await db.query("update users set min_balance = $1 where id = $2", [minBalance, userId]);
+
+  revalidatePath("/admin");
+}
+
+export async function setIsAgentAction(formData: FormData) {
+  await requireAdmin();
+
+  const userId = String(formData.get("userId"));
+  const isAgentAccount = formData.get("isAgent") === "true";
+
+  await db.query("update users set is_agent = $1 where id = $2", [isAgentAccount, userId]);
 
   revalidatePath("/admin");
 }

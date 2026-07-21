@@ -6,9 +6,10 @@ import { placeParlayAction } from "./actions";
 import { americanToDecimal } from "@/lib/odds";
 import { formatMoney } from "@/lib/format";
 
-export default function BetSlip() {
+export default function BetSlip({ freePlayBalance = 0 }: { freePlayBalance?: number }) {
   const { legs, removeLeg, clear } = useBetSlip();
   const [wager, setWager] = useState("");
+  const [useFreePlay, setUseFreePlay] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -54,10 +55,12 @@ export default function BetSlip() {
             pickSide,
           })),
           wagerNum,
+          useFreePlay,
         );
         setSuccess("Parlay placed!");
         clear();
         setWager("");
+        setUseFreePlay(false);
       } catch (err) {
         setError((err as Error).message);
       }
@@ -128,6 +131,18 @@ export default function BetSlip() {
         <div className="mb-2 text-xs text-slate-400">
           To win: {formatMoney(potentialPayout)}
         </div>
+      )}
+
+      {freePlayBalance > 0 && (
+        <label className="mb-2 flex items-center gap-1.5 text-xs text-amber-400">
+          <input
+            type="checkbox"
+            checked={useFreePlay}
+            onChange={(e) => setUseFreePlay(e.target.checked)}
+            className="accent-amber-400"
+          />
+          Use free play ({formatMoney(freePlayBalance)} available)
+        </label>
       )}
 
       {error && <p className="mb-2 text-xs text-red-400">{error}</p>}

@@ -46,13 +46,46 @@ export function determineOutrightOutcome(
 
 async function creditOutcome(
   db: Pool,
-  entity: { id: string; user_id: string; wager: string; potential_payout: string },
+  entity: {
+    id: string;
+    user_id: string;
+    wager: string;
+    potential_payout: string;
+    is_free_play: boolean;
+  },
   outcome: "win" | "push",
   kind: "pick" | "parlay",
 ) {
+  const relatedColumn = kind === "pick" ? "related_pick_id" : "related_parlay_id";
+
+  if (entity.is_free_play) {
+    // Free play stake was never real money: a push just gives the same
+    // free-play stake back (not real coins), and a win only turns the
+    // profit — payout minus the free stake — into real coin_balance. A
+    // loss is already a no-op at the call site, same as real-money picks.
+    if (outcome === "push") {
+      await db.query("update users set free_play = free_play + $1 where id = $2", [
+        entity.wager,
+        entity.user_id,
+      ]);
+      return;
+    }
+    const profit = Number(entity.potential_payout) - Number(entity.wager);
+    if (profit <= 0) return;
+    await db.query(
+      `insert into coin_transactions (user_id, amount, reason, ${relatedColumn})
+       values ($1, $2, 'fp_payout', $3)`,
+      [entity.user_id, profit, entity.id],
+    );
+    await db.query("update users set coin_balance = coin_balance + $1 where id = $2", [
+      profit,
+      entity.user_id,
+    ]);
+    return;
+  }
+
   const amount = outcome === "win" ? entity.potential_payout : entity.wager;
   const reason = outcome === "win" ? "pick_payout" : "pick_refund";
-  const relatedColumn = kind === "pick" ? "related_pick_id" : "related_parlay_id";
 
   await db.query(
     `insert into coin_transactions (user_id, amount, reason, ${relatedColumn})
@@ -75,7 +108,8 @@ async function trySettleParlay(db: Pool, parlayId: string) {
     user_id: string;
     wager: string;
     status: string;
-  }>("select id, user_id, wager, status from parlays where id = $1", [parlayId]);
+    is_free_play: boolean;
+  }>("select id, user_id, wager, status, is_free_play from parlays where id = $1", [parlayId]);
   const parlay = parlays[0];
   if (!parlay || parlay.status !== "pending") return;
 
@@ -223,11 +257,12 @@ export async function settlePicksForGame(
     pick_side: string;
     wager: string;
     potential_payout: string;
+    is_free_play: boolean;
     spread: string | null;
     total: string | null;
   }>(
     `select p.id, p.user_id, p.pick_type, p.pick_side, p.wager, p.potential_payout,
-            l.spread, l.total
+            p.is_free_play, l.spread, l.total
      from picks p
      join lines l on l.id = p.line_id
      where p.game_id = $1 and p.status = 'pending'`,
@@ -278,8 +313,9 @@ export async function settleOutrightEvent(
     pick_side: string;
     wager: string;
     potential_payout: string;
+    is_free_play: boolean;
   }>(
-    `select id, user_id, pick_side, wager, potential_payout
+    `select id, user_id, pick_side, wager, potential_payout, is_free_play
      from picks
      where game_id = $1 and status = 'pending' and pick_type = 'outright'`,
     [gameId],

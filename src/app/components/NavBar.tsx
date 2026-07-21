@@ -37,6 +37,11 @@ export default async function NavBar() {
             History
           </Link>
         )}
+        {(user.is_admin || user.is_agent) && (
+          <Link href="/users" className="hover:text-white">
+            Users
+          </Link>
+        )}
       </div>
       <div className="flex items-center gap-4">
         <span className="text-slate-500">{user.display_name}</span>

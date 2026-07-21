@@ -2,6 +2,7 @@
 
 import { placePickAction } from "./actions";
 import { useBetSlip } from "./BetSlipContext";
+import { formatMoney } from "@/lib/format";
 
 export default function PickForm({
   gameId,
@@ -9,12 +10,14 @@ export default function PickForm({
   pickType,
   label,
   options,
+  freePlayBalance = 0,
 }: {
   gameId: string;
   lineId: string;
   pickType: string;
   label: string;
   options: { value: string; label: string; odds: number }[];
+  freePlayBalance?: number;
 }) {
   const { addLeg } = useBetSlip();
 
@@ -78,6 +81,12 @@ export default function PickForm({
           Place
         </button>
       </div>
+      {freePlayBalance > 0 && (
+        <label className="mt-2 flex items-center gap-1.5 text-xs text-amber-400">
+          <input type="checkbox" name="isFreePlay" value="true" className="accent-amber-400" />
+          Use free play ({formatMoney(freePlayBalance)} available)
+        </label>
+      )}
     </form>
   );
 }

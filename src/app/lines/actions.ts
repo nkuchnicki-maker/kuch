@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { americanToDecimal, payoutForOdds, STANDARD_JUICE } from "@/lib/odds";
-import { debitForWager } from "@/lib/wager";
+import { debitForWager, debitFreePlay } from "@/lib/wager";
 
 export async function placePickAction(formData: FormData) {
   const user = await requireUser();
@@ -14,6 +14,7 @@ export async function placePickAction(formData: FormData) {
   const pickType = String(formData.get("pickType")); // spread | total | moneyline
   const pickSide = String(formData.get("pickSide")); // home | away | over | under
   const wager = Number(formData.get("wager"));
+  const isFreePlay = formData.get("isFreePlay") === "true";
 
   if (!Number.isFinite(wager) || wager <= 0) {
     throw new Error("Wager must be a positive number");
@@ -49,20 +50,29 @@ export async function placePickAction(formData: FormData) {
   try {
     await client.query("begin");
 
-    await debitForWager(client, user.id, wager);
+    if (isFreePlay) {
+      await debitFreePlay(client, user.id, wager);
+    } else {
+      await debitForWager(client, user.id, wager);
+    }
 
     const { rows: pickRows } = await client.query<{ id: string }>(
-      `insert into picks (user_id, game_id, line_id, pick_type, pick_side, wager, potential_payout)
-       values ($1, $2, $3, $4, $5, $6, $7)
+      `insert into picks (user_id, game_id, line_id, pick_type, pick_side, wager, potential_payout, is_free_play)
+       values ($1, $2, $3, $4, $5, $6, $7, $8)
        returning id`,
-      [user.id, gameId, lineId, pickType, pickSide, wager, potentialPayout],
+      [user.id, gameId, lineId, pickType, pickSide, wager, potentialPayout, isFreePlay],
     );
 
-    await client.query(
-      `insert into coin_transactions (user_id, amount, reason, related_pick_id)
-       values ($1, $2, 'pick_wager', $3)`,
-      [user.id, -wager, pickRows[0].id],
-    );
+    // Free-play wagers don't touch coin_balance, so no coin_transactions
+    // entry — that table's amounts must sum exactly to coin_balance changes
+    // (weeklyReset/history reconstruct balances from it).
+    if (!isFreePlay) {
+      await client.query(
+        `insert into coin_transactions (user_id, amount, reason, related_pick_id)
+         values ($1, $2, 'pick_wager', $3)`,
+        [user.id, -wager, pickRows[0].id],
+      );
+    }
 
     await client.query("commit");
   } catch (err) {
@@ -86,7 +96,11 @@ export type ParlayLegInput = {
 
 // Called directly from the bet slip client component (not a <form action>),
 // so it takes a plain argument rather than FormData.
-export async function placeParlayAction(legs: ParlayLegInput[], wager: number) {
+export async function placeParlayAction(
+  legs: ParlayLegInput[],
+  wager: number,
+  isFreePlay = false,
+) {
   const user = await requireUser();
 
   if (!Array.isArray(legs) || legs.length < 2) {
@@ -144,13 +158,17 @@ export async function placeParlayAction(legs: ParlayLegInput[], wager: number) {
   try {
     await client.query("begin");
 
-    await debitForWager(client, user.id, wager);
+    if (isFreePlay) {
+      await debitFreePlay(client, user.id, wager);
+    } else {
+      await debitForWager(client, user.id, wager);
+    }
 
     const { rows: parlayRows } = await client.query<{ id: string }>(
-      `insert into parlays (user_id, wager, potential_payout)
-       values ($1, $2, $3)
+      `insert into parlays (user_id, wager, potential_payout, is_free_play)
+       values ($1, $2, $3, $4)
        returning id`,
-      [user.id, wager, potentialPayout],
+      [user.id, wager, potentialPayout, isFreePlay],
     );
     const parlayId = parlayRows[0].id;
 
@@ -162,11 +180,13 @@ export async function placeParlayAction(legs: ParlayLegInput[], wager: number) {
       );
     }
 
-    await client.query(
-      `insert into coin_transactions (user_id, amount, reason, related_parlay_id)
-       values ($1, $2, 'pick_wager', $3)`,
-      [user.id, -wager, parlayId],
-    );
+    if (!isFreePlay) {
+      await client.query(
+        `insert into coin_transactions (user_id, amount, reason, related_parlay_id)
+         values ($1, $2, 'pick_wager', $3)`,
+        [user.id, -wager, parlayId],
+      );
+    }
 
     await client.query("commit");
   } catch (err) {
@@ -188,6 +208,7 @@ export async function placeOutrightPickAction(formData: FormData) {
   const lineId = String(formData.get("lineId"));
   const participantName = String(formData.get("participantName"));
   const wager = Number(formData.get("wager"));
+  const isFreePlay = formData.get("isFreePlay") === "true";
 
   if (!participantName) throw new Error("Pick a player");
   if (!Number.isFinite(wager) || wager <= 0) {
@@ -216,20 +237,26 @@ export async function placeOutrightPickAction(formData: FormData) {
   try {
     await client.query("begin");
 
-    await debitForWager(client, user.id, wager);
+    if (isFreePlay) {
+      await debitFreePlay(client, user.id, wager);
+    } else {
+      await debitForWager(client, user.id, wager);
+    }
 
     const { rows: pickRows } = await client.query<{ id: string }>(
-      `insert into picks (user_id, game_id, line_id, pick_type, pick_side, wager, potential_payout)
-       values ($1, $2, $3, 'outright', $4, $5, $6)
+      `insert into picks (user_id, game_id, line_id, pick_type, pick_side, wager, potential_payout, is_free_play)
+       values ($1, $2, $3, 'outright', $4, $5, $6, $7)
        returning id`,
-      [user.id, gameId, lineId, participantName, wager, potentialPayout],
+      [user.id, gameId, lineId, participantName, wager, potentialPayout, isFreePlay],
     );
 
-    await client.query(
-      `insert into coin_transactions (user_id, amount, reason, related_pick_id)
-       values ($1, $2, 'pick_wager', $3)`,
-      [user.id, -wager, pickRows[0].id],
-    );
+    if (!isFreePlay) {
+      await client.query(
+        `insert into coin_transactions (user_id, amount, reason, related_pick_id)
+         values ($1, $2, 'pick_wager', $3)`,
+        [user.id, -wager, pickRows[0].id],
+      );
+    }
 
     await client.query("commit");
   } catch (err) {

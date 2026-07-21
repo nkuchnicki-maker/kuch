@@ -31,6 +31,9 @@ rights and weekly leaderboards.
   it — see "Minimum balance" below.
 - Admin has a **History** page showing every user's balance at the end of
   each past week, sortable by date/name/balance/net — see "History" below.
+- Admins and flagged **agent** accounts can view the **Users** page to grant
+  **free play** — a separate spendable currency, tracked outside the normal
+  balance — see "Free play" below.
 
 Login is a simple email/password system built into the app itself
 (bcrypt-hashed passwords, signed session cookies) — no third-party auth
@@ -271,6 +274,40 @@ new wagers; it doesn't retroactively clamp a balance that dips lower from a
 pending bet settling as a loss (same as the weekly-reset carryover above —
 a big enough outstanding bet can still leave someone past their floor once
 it resolves).
+
+## Free play
+
+Free play is a separate currency from `coin_balance` — a manager can grant
+it to a user (e.g. as a promo), and the user can wager it just like real
+coins. It settles differently, though: since a free-play stake was never
+real money,
+
+- a **win** only turns the *profit* (payout minus the free stake) into real
+  `coin_balance` — the free stake itself doesn't get added on top
+- a **loss** doesn't touch `coin_balance` at all (nothing real was risked),
+  and the spent free play doesn't come back
+- a **push** refunds the stake back to `free_play` (not `coin_balance`)
+
+For example, a $110 free-play bet at -110 odds that wins adds $100 to the
+real balance (not $210); if it loses, the balance doesn't move at all.
+
+Free play never resets automatically (it carries over week to week, unlike
+`coin_balance`) — it only changes when a manager grants/adjusts it or a
+free-play pick settles. A "Use free play" checkbox appears next to a pick's
+wager field whenever the signed-in user has a free-play balance above $0.
+
+### Users page and agent accounts
+
+The **Users** page (`/users`) is where free play gets granted — admins and
+any account flagged **"Is agent"** in Admin can see it, but an agent's view
+is filtered to only the users recruited under their own agent code (`OWN`,
+`MJ`, or `BO`); admins see everyone. It shows each user's balance from the
+last completed week (reusing the same data as History) alongside their
+current free-play balance, with a form to adjust it.
+
+Flag an account as an agent from the **"Agent access"** column on the Admin
+users table, or the "Is agent" checkbox when creating a new user — it's
+independent of `is_admin` and of which agent code *recruited* that account.
 
 ## History
 

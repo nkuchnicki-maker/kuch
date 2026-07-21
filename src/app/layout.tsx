@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import NavBar from "./components/NavBar";
+import { getCurrentUser } from "@/lib/auth";
 import { BetSlipProvider } from "./lines/BetSlipContext";
 import BetSlip from "./lines/BetSlip";
 
@@ -20,11 +21,13 @@ export const metadata: Metadata = {
   description: "Play-money picks and leaderboards with your friends",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const user = await getCurrentUser();
+
   return (
     <html
       lang="en"
@@ -34,7 +37,7 @@ export default function RootLayout({
         <BetSlipProvider>
           <NavBar />
           {children}
-          <BetSlip />
+          <BetSlip freePlayBalance={user ? Number(user.free_play) : 0} />
         </BetSlipProvider>
       </body>
     </html>
