@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, isAgentOnly } from "@/lib/auth";
 import { STANDARD_JUICE } from "@/lib/odds";
 import { formatMoney } from "@/lib/format";
 import SportFilter from "../lines/SportFilter";
@@ -27,6 +27,7 @@ export default async function LiveSportsPage({
 }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  if (isAgentOnly(user)) redirect("/users");
 
   const { sport: selectedSport = "" } = await searchParams;
 

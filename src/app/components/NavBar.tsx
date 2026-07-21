@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, isAgentOnly } from "@/lib/auth";
 import { signOutAction } from "../actions";
 import Logo from "./Logo";
 
@@ -7,6 +7,8 @@ export default async function NavBar() {
   const user = await getCurrentUser();
 
   if (!user) return null;
+
+  const agentOnly = isAgentOnly(user);
 
   return (
     <nav className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-6 py-3 text-sm text-slate-300">
@@ -18,21 +20,25 @@ export default async function NavBar() {
         <Link href="/leaderboard" className="hover:text-white">
           Leaderboard
         </Link>
-        <Link href="/lines" className="hover:text-white">
-          Lines
-        </Link>
-        <Link href="/live-sports" className="hover:text-white">
-          Live Sports
-        </Link>
-        <Link href="/picks" className="hover:text-white">
-          My Picks
-        </Link>
+        {!agentOnly && (
+          <>
+            <Link href="/lines" className="hover:text-white">
+              Lines
+            </Link>
+            <Link href="/live-sports" className="hover:text-white">
+              Live Sports
+            </Link>
+            <Link href="/picks" className="hover:text-white">
+              My Picks
+            </Link>
+          </>
+        )}
         {user.is_admin && (
           <Link href="/admin" className="hover:text-white">
             Admin
           </Link>
         )}
-        {user.is_admin && (
+        {(user.is_admin || user.is_agent) && (
           <Link href="/history" className="hover:text-white">
             History
           </Link>

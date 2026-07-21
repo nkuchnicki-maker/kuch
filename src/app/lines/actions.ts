@@ -2,12 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireUser } from "@/lib/auth";
+import { requireUser, blockIfAgentOnly } from "@/lib/auth";
 import { americanToDecimal, payoutForOdds, STANDARD_JUICE } from "@/lib/odds";
 import { debitForWager, debitFreePlay } from "@/lib/wager";
 
 export async function placePickAction(formData: FormData) {
   const user = await requireUser();
+  await blockIfAgentOnly(user);
 
   const gameId = String(formData.get("gameId"));
   const lineId = String(formData.get("lineId"));
@@ -102,6 +103,7 @@ export async function placeParlayAction(
   isFreePlay = false,
 ) {
   const user = await requireUser();
+  await blockIfAgentOnly(user);
 
   if (!Array.isArray(legs) || legs.length < 2) {
     throw new Error("A parlay needs at least 2 picks");
@@ -203,6 +205,7 @@ export async function placeParlayAction(
 
 export async function placeOutrightPickAction(formData: FormData) {
   const user = await requireUser();
+  await blockIfAgentOnly(user);
 
   const gameId = String(formData.get("gameId"));
   const lineId = String(formData.get("lineId"));

@@ -303,6 +303,13 @@ The **Users** page (`/users`) is visible to admins and any account flagged
 balance from the last completed week (reusing the same data as History)
 and current free play — visibility isn't restricted by agent code.
 
+An account that's an agent but *not* an admin gets a stripped-down nav —
+just **Leaderboard**, **History**, and **Users**. Lines, Live Sports, My
+Picks, and Admin are hidden, and navigating to those URLs directly
+redirects to `/users` (the pick-placement server actions reject agent-only
+accounts too, so this isn't just a hidden link). Admins keep full access to
+everything regardless of whether they're also flagged as an agent.
+
 An agent *can* tune **min balance** for their own recruited users (same
 "Set min balance" form Admin has), but a few things stay admin-only even
 though agents can see this page:

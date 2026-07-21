@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, isAgentOnly } from "@/lib/auth";
 import StatusBadge from "../components/StatusBadge";
 import { formatMoney } from "@/lib/format";
 
@@ -51,6 +51,7 @@ type Parlay = {
 export default async function MyPicksPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
+  if (isAgentOnly(user)) redirect("/users");
 
   const [{ rows: picks }, { rows: parlayLegRows }] = await Promise.all([
     db.query<PickRow>(

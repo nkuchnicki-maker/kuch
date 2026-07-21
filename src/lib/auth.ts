@@ -86,3 +86,13 @@ export async function requireAdminOrAgent(): Promise<CurrentUser> {
   if (!user.is_admin && !user.is_agent) throw new Error("Not an admin or agent");
   return user;
 }
+
+// Agent-only accounts (recruiting agents like MJ/BO who aren't also
+// admins) are restricted to Leaderboard/History/Users — no betting pages.
+export function isAgentOnly(user: CurrentUser): boolean {
+  return user.is_agent && !user.is_admin;
+}
+
+export async function blockIfAgentOnly(user: CurrentUser) {
+  if (isAgentOnly(user)) throw new Error("Agent accounts can't place picks");
+}

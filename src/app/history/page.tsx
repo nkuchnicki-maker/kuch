@@ -10,10 +10,10 @@ export default async function HistoryPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  if (!user.is_admin) {
+  if (!user.is_admin && !user.is_agent) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950 text-slate-300">
-        You don&apos;t have admin access.
+        You don&apos;t have access to this page.
       </div>
     );
   }
