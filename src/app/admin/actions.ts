@@ -2,23 +2,35 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireAdmin, hashPassword } from "@/lib/auth";
+import { requireAdmin, requireAdminOrAgent, hashPassword } from "@/lib/auth";
 import { isAgent } from "@/lib/agents";
 import { settlePicksForGame, settleOutrightEvent } from "@/lib/settle";
 import { syncAllTrackedSports, type SyncSummary } from "@/lib/sync";
 import { forceWeeklyReset, type WeeklyResetResult } from "@/lib/weeklyReset";
 
 export async function createUserAction(formData: FormData) {
-  await requireAdmin();
+  const viewer = await requireAdminOrAgent();
 
   const password = String(formData.get("password"));
   const username = String(formData.get("username")).trim();
   const displayName = String(formData.get("displayName")).trim();
   const startingCoins = Number(formData.get("startingCoins")) || 0;
-  const minBalanceRaw = Number(formData.get("minBalance"));
-  const minBalance = Number.isFinite(minBalanceRaw) ? minBalanceRaw : -200;
-  const agent = String(formData.get("agent"));
-  const isAgentAccount = formData.get("isAgent") === "true";
+
+  // The simplified form agents get on /users omits this field entirely —
+  // formData.get returns null then, which Number() coerces to 0 (a *valid*
+  // finite number), so this has to check for absence explicitly rather
+  // than just falling back on non-finite values.
+  const minBalanceField = formData.get("minBalance");
+  const minBalance =
+    minBalanceField !== null && minBalanceField !== "" && Number.isFinite(Number(minBalanceField))
+      ? Number(minBalanceField)
+      : -200;
+
+  // Non-admin agents can only recruit under their own agent code and can't
+  // grant agent access to a new account — both stay admin-only decisions,
+  // enforced here regardless of what a request might submit for those fields.
+  const agent = viewer.is_admin ? String(formData.get("agent")) : viewer.agent;
+  const isAgentAccount = viewer.is_admin && formData.get("isAgent") === "true";
 
   if (!isAgent(agent)) {
     throw new Error("Pick a valid agent");
@@ -43,6 +55,7 @@ export async function createUserAction(formData: FormData) {
   }
 
   revalidatePath("/admin");
+  revalidatePath("/users");
 }
 
 export async function adjustCoinsAction(formData: FormData) {
