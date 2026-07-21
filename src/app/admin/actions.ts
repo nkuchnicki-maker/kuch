@@ -103,7 +103,7 @@ export async function adjustCoinsAction(formData: FormData) {
 }
 
 export async function setMinBalanceAction(formData: FormData) {
-  await requireAdmin();
+  const viewer = await requireAdminOrAgent();
 
   const userId = String(formData.get("userId"));
   const minBalance = Number(formData.get("minBalance"));
@@ -112,9 +112,22 @@ export async function setMinBalanceAction(formData: FormData) {
     throw new Error("Minimum balance must be zero or a negative number");
   }
 
+  // Agents (non-admins) can only tune the floor for their own recruited
+  // users — enforced here, not just hidden in the UI.
+  if (!viewer.is_admin) {
+    const { rows } = await db.query<{ agent: string }>(
+      "select agent from users where id = $1",
+      [userId],
+    );
+    if (rows[0]?.agent !== viewer.agent) {
+      throw new Error("You can only adjust min balance for your own recruited users");
+    }
+  }
+
   await db.query("update users set min_balance = $1 where id = $2", [minBalance, userId]);
 
   revalidatePath("/admin");
+  revalidatePath("/users");
 }
 
 export async function setIsAgentAction(formData: FormData) {

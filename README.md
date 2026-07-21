@@ -303,10 +303,15 @@ The **Users** page (`/users`) is visible to admins and any account flagged
 balance from the last completed week (reusing the same data as History)
 and current free play — visibility isn't restricted by agent code.
 
-Two things agents *can't* do, even though they can see this page:
+An agent *can* tune **min balance** for their own recruited users (same
+"Set min balance" form Admin has), but a few things stay admin-only even
+though agents can see this page:
 
 - **Grant or adjust free play** — only the admin can (shows "—" instead of
   a form for agent viewers on every row, not just other agents' recruits).
+- **Tune min balance for someone else's recruits** — an agent adjusting a
+  user outside their own agent code gets "—" instead of a form, same as
+  free play; admins can adjust anyone's.
 - **Pick a new player's recruiting agent, or grant "Is agent"** — the "Add
   a new player" form on this page is a trimmed-down version of Admin's
   "Create a new user" (no email needed, same as Admin): a non-admin agent's

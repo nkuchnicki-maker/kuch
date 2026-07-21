@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getWeeklyHistory } from "@/lib/history";
 import { formatMoney } from "@/lib/format";
 import { AGENTS } from "@/lib/agents";
-import { createUserAction } from "../admin/actions";
+import { createUserAction, setMinBalanceAction } from "../admin/actions";
 import { adjustFreePlayAction } from "./actions";
 
 type UserRow = {
@@ -13,6 +13,7 @@ type UserRow = {
   display_name: string;
   agent: string;
   coin_balance: string;
+  min_balance: string;
   free_play: string;
 };
 
@@ -30,7 +31,7 @@ export default async function UsersPage() {
 
   const [{ rows: users }, history] = await Promise.all([
     db.query<UserRow>(
-      "select id, username, display_name, agent, coin_balance, free_play from users order by display_name",
+      "select id, username, display_name, agent, coin_balance, min_balance, free_play from users order by display_name",
     ),
     getWeeklyHistory(db),
   ]);
@@ -49,7 +50,9 @@ export default async function UsersPage() {
         Everyone&apos;s balance from last week and current free play. Free
         play is a separate spendable currency — a winning free-play pick
         only credits the profit to the real balance, a loss doesn&apos;t
-        touch it. Only the admin can grant or adjust free play.
+        touch it. Only the admin can grant or adjust free play; min balance
+        can be tuned by the admin or by an agent for their own recruited
+        users.
       </p>
 
       <section className="mb-8 rounded-xl border border-slate-800 bg-slate-900 p-6">
@@ -94,15 +97,18 @@ export default async function UsersPage() {
               <th>Agent</th>
               <th>Balance last week</th>
               <th>Current balance</th>
+              <th>Min balance</th>
               <th>Free play</th>
               <th>Adjust free play</th>
+              <th>Set min balance</th>
             </tr>
           </thead>
           <tbody>
             {users.length ? (
               users.map((u) => {
                 const lastWeek = lastWeekBalanceByUser.get(u.id);
-                const canAdjust = viewer.is_admin;
+                const canAdjustFreePlay = viewer.is_admin;
+                const canAdjustMinBalance = viewer.is_admin || u.agent === viewer.agent;
                 return (
                   <tr key={u.id} className="border-b border-slate-800/50">
                     <td className="py-2">{u.display_name}</td>
@@ -114,9 +120,10 @@ export default async function UsersPage() {
                     <td className="font-mono text-emerald-400">
                       {formatMoney(u.coin_balance)}
                     </td>
+                    <td className="font-mono text-red-400">{formatMoney(u.min_balance)}</td>
                     <td className="font-mono text-amber-400">{formatMoney(u.free_play)}</td>
                     <td>
-                      {canAdjust ? (
+                      {canAdjustFreePlay ? (
                         <form action={adjustFreePlayAction} className="flex gap-2">
                           <input type="hidden" name="userId" value={u.id} />
                           <input
@@ -137,12 +144,36 @@ export default async function UsersPage() {
                         <span className="text-slate-600">—</span>
                       )}
                     </td>
+                    <td>
+                      {canAdjustMinBalance ? (
+                        <form action={setMinBalanceAction} className="flex gap-2">
+                          <input type="hidden" name="userId" value={u.id} />
+                          <input
+                            name="minBalance"
+                            type="number"
+                            max={0}
+                            defaultValue={u.min_balance}
+                            placeholder="e.g. -200"
+                            required
+                            className="w-32 rounded-lg border border-slate-700 bg-slate-800 px-2 py-1"
+                          />
+                          <button
+                            type="submit"
+                            className="rounded-lg bg-slate-700 px-3 py-1 hover:bg-slate-600"
+                          >
+                            Set
+                          </button>
+                        </form>
+                      ) : (
+                        <span className="text-slate-600">—</span>
+                      )}
+                    </td>
                   </tr>
                 );
               })
             ) : (
               <tr>
-                <td colSpan={7} className="py-6 text-center text-slate-500">
+                <td colSpan={9} className="py-6 text-center text-slate-500">
                   No users yet.
                 </td>
               </tr>
