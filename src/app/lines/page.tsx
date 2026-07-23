@@ -34,12 +34,17 @@ export default async function LinesPage({
 
   const { sport: selectedSport = "" } = await searchParams;
 
+  // start_time > now() on top of status = 'scheduled' — a game that's
+  // kicked off but hasn't had its status flipped to 'live' by the next
+  // sync yet (that only runs every so often) shouldn't keep showing here
+  // with stale pre-match odds; it reappears on Live Sports as soon as the
+  // sync catches up.
   const { rows: allGames } = await db.query<GameLineRow>(`
     select g.id, g.sport, g.event_type, g.home_team, g.away_team, g.event_name, g.start_time,
            l.id as line_id, l.spread, l.total, l.moneyline_home, l.moneyline_away, l.outrights
     from games g
     join lines l on l.game_id = g.id
-    where g.status = 'scheduled'
+    where g.status = 'scheduled' and g.start_time > now()
     order by g.start_time
   `);
 

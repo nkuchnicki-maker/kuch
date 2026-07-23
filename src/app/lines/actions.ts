@@ -22,14 +22,21 @@ export async function placePickAction(formData: FormData) {
     throw new Error("Wager must be a positive number");
   }
 
-  const { rows: gameRows } = await db.query<{ status: string }>(
-    "select status from games where id = $1",
+  const { rows: gameRows } = await db.query<{ status: string; start_time: string }>(
+    "select status, start_time from games where id = $1",
     [gameId],
   );
-  const gameStatus = gameRows[0]?.status;
-  if (!gameStatus || !["scheduled", "live"].includes(gameStatus)) {
+  const game = gameRows[0];
+  if (!game || !["scheduled", "live"].includes(game.status)) {
     throw new Error("This game is no longer open for picks");
   }
+  // Belt-and-suspenders alongside the /lines page's start_time filter — a
+  // stale-rendered pre-match form could otherwise still submit right after
+  // kickoff, before the next sync flips status to 'live'.
+  if (game.status === "scheduled" && new Date(game.start_time) <= new Date()) {
+    throw new Error("This game has already started — check Live Sports for the current line");
+  }
+  const gameStatus = game.status;
 
   const line = await fetchLineSnapshot(db, lineId);
   if (!line) throw new Error("Line not found");
@@ -147,14 +154,18 @@ export async function placeParlayAction(
   })[] = [];
 
   for (const leg of legs) {
-    const { rows: gameRows } = await db.query<{ status: string }>(
-      "select status from games where id = $1",
+    const { rows: gameRows } = await db.query<{ status: string; start_time: string }>(
+      "select status, start_time from games where id = $1",
       [leg.gameId],
     );
-    const gameStatus = gameRows[0]?.status;
-    if (!gameStatus || !["scheduled", "live"].includes(gameStatus)) {
+    const legGame = gameRows[0];
+    if (!legGame || !["scheduled", "live"].includes(legGame.status)) {
       throw new Error("One of your picks is no longer open");
     }
+    if (legGame.status === "scheduled" && new Date(legGame.start_time) <= new Date()) {
+      throw new Error("One of your picks has already started — check Live Sports for the current line");
+    }
+    const gameStatus = legGame.status;
 
     let odds: number | null;
     let snapshot: LineSnapshot;
