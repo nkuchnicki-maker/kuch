@@ -2,10 +2,10 @@ name: Sync odds & scores
 
 on:
   schedule:
-    # Twice a day. With 6 sports tracked, this already uses a meaningful
-    # chunk of the free ~500 credit/month budget — see README "A note on
-    # the free tier's request budget" before tightening this further.
-    - cron: "0 12,20 * * *"
+    # Every 15 minutes. With a large Odds API credit budget this is cheap
+    # (~34 credits/run, ~294k/month for all 6 sports + golf — see README "A
+    # note on the free tier's request budget" for the math at other tiers).
+    - cron: "*/15 * * * *"
   workflow_dispatch: {} # lets you trigger a run manually from the Actions tab
 
 jobs:

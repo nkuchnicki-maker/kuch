@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getCurrentUser, isAgentOnly } from "@/lib/auth";
 import { STANDARD_JUICE } from "@/lib/odds";
 import { formatMoney } from "@/lib/format";
+import { isCurrentlyLocked } from "@/lib/marketLock";
 import SportFilter from "../lines/SportFilter";
 import PickForm from "../lines/PickForm";
 
@@ -18,6 +19,7 @@ type LiveGameRow = {
   total: string | null;
   moneyline_home: number | null;
   moneyline_away: number | null;
+  locked_until: string | null;
 };
 
 export default async function LiveSportsPage({
@@ -35,7 +37,8 @@ export default async function LiveSportsPage({
   // tournament winner), so this only ever deals with two-team matchups.
   const { rows: allGames } = await db.query<LiveGameRow>(`
     select g.id, g.sport, g.home_team, g.away_team, g.home_score, g.away_score,
-           l.id as line_id, l.spread, l.total, l.moneyline_home, l.moneyline_away
+           l.id as line_id, l.spread, l.total, l.moneyline_home, l.moneyline_away,
+           l.locked_until
     from games g
     join lines l on l.game_id = g.id
     where g.status = 'live'
@@ -79,6 +82,7 @@ export default async function LiveSportsPage({
           games.map((g) => {
             const spread = g.spread != null ? Number(g.spread) : null;
             const total = g.total != null ? Number(g.total) : null;
+            const locked = isCurrentlyLocked(g.locked_until);
             return (
               <div
                 key={g.id}
@@ -94,11 +98,21 @@ export default async function LiveSportsPage({
                       <span className="ml-2 rounded bg-red-500/90 px-1.5 py-0.5 align-middle text-xs font-bold uppercase text-white">
                         Live
                       </span>
+                      {locked && (
+                        <span className="ml-2 rounded bg-amber-500/90 px-1.5 py-0.5 align-middle text-xs font-bold uppercase text-slate-950">
+                          Market Locked
+                        </span>
+                      )}
                     </h2>
                     {g.home_score != null && g.away_score != null && (
                       <div className="text-sm font-mono text-slate-300">
                         {g.away_team} {g.away_score} — {g.home_team} {g.home_score}
                       </div>
+                    )}
+                    {locked && (
+                      <p className="mt-1 text-xs text-amber-400">
+                        Big play just happened — betting is paused briefly while the line catches up.
+                      </p>
                     )}
                   </div>
                   <span className="text-xs text-slate-500">In progress</span>

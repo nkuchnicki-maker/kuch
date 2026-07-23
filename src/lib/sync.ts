@@ -2,6 +2,7 @@ import "server-only";
 import type { Pool } from "pg";
 import { fetchOdds, fetchOutrights, fetchScores, pickBookmaker } from "./oddsApi";
 import { settlePicksForGame } from "./settle";
+import { isBigMove, lockedUntilTimestamp } from "./marketLock";
 
 // The Odds API "sport key" -> label we store in games.sport.
 // Add/remove entries here to change what gets auto-synced. This covers
@@ -82,21 +83,55 @@ export async function syncOddsForSport(
     const moneylineAway = h2h?.outcomes.find((o) => o.name === event.away_team)?.price;
 
     try {
+      const { rows: existingRows } = await db.query<{
+        spread: string | null;
+        total: string | null;
+        moneyline_home: number | null;
+        moneyline_away: number | null;
+      }>(
+        "select spread, total, moneyline_home, moneyline_away from lines where game_id = $1",
+        [game.id],
+      );
+      const existing = existingRows[0];
+
+      const bigMove =
+        !!existing &&
+        (isBigMove(
+          existing.spread != null ? Number(existing.spread) : null,
+          homeSpread ?? null,
+          "spread",
+        ) ||
+          isBigMove(existing.total != null ? Number(existing.total) : null, total ?? null, "total") ||
+          isBigMove(existing.moneyline_home, moneylineHome ?? null, "moneyline") ||
+          isBigMove(existing.moneyline_away, moneylineAway ?? null, "moneyline"));
+
+      // A big move on a live game pauses betting on it briefly so no one
+      // can wager against a number that's about to change; a prematch move
+      // just gets flagged for visibility — no lock needed before kickoff.
+      const shouldLock = bigMove && game.status === "live";
+
       await db.query(
-        `insert into lines (game_id, spread, total, moneyline_home, moneyline_away, updated_at)
-         values ($1, $2, $3, $4, $5, now())
+        `insert into lines (
+           game_id, spread, total, moneyline_home, moneyline_away, updated_at,
+           last_big_move_at, locked_until
+         )
+         values ($1, $2, $3, $4, $5, now(), $6, $7)
          on conflict (game_id) do update set
            spread = excluded.spread,
            total = excluded.total,
            moneyline_home = excluded.moneyline_home,
            moneyline_away = excluded.moneyline_away,
-           updated_at = now()`,
+           updated_at = now(),
+           last_big_move_at = coalesce(excluded.last_big_move_at, lines.last_big_move_at),
+           locked_until = coalesce(excluded.locked_until, lines.locked_until)`,
         [
           game.id,
           homeSpread ?? null,
           total ?? null,
           moneylineHome ?? null,
           moneylineAway ?? null,
+          bigMove ? new Date() : null,
+          shouldLock ? lockedUntilTimestamp() : null,
         ],
       );
     } catch (err) {
@@ -190,8 +225,10 @@ export async function syncScoresForSport(
       status: string;
       home_team: string;
       away_team: string;
+      home_score: number | null;
+      away_score: number | null;
     }>(
-      "select id, status, home_team, away_team from games where external_id = $1",
+      "select id, status, home_team, away_team, home_score, away_score from games where external_id = $1",
       [entry.id],
     );
     const game = rows[0];
@@ -215,10 +252,23 @@ export async function syncScoresForSport(
         [Number(homeScore), Number(awayScore), game.id],
       );
     } else {
+      // A score change while already live means a scoring play just
+      // happened — lock this game's market briefly so no one can bet
+      // against a number that's about to move.
+      const scoreChanged =
+        game.home_score !== Number(homeScore) || game.away_score !== Number(awayScore);
+
       await db.query(
         "update games set home_score = $1, away_score = $2 where id = $3",
         [Number(homeScore), Number(awayScore), game.id],
       );
+
+      if (scoreChanged) {
+        await db.query(
+          "update lines set locked_until = $1 where game_id = $2",
+          [lockedUntilTimestamp(), game.id],
+        );
+      }
     }
   }
 

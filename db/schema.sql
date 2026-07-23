@@ -70,6 +70,8 @@ create table if not exists lines (
   moneyline_home integer,
   moneyline_away integer,
   outrights jsonb, -- outright events only: [{"name": "Scottie Scheffler", "odds": 500}, ...]
+  locked_until timestamptz, -- market paused after a big play/move until this passes
+  last_big_move_at timestamptz, -- visibility marker, not itself a lock
   updated_by uuid references users(id),
   updated_at timestamptz not null default now()
 );
@@ -87,6 +89,8 @@ create table if not exists picks (
   wager numeric not null check (wager > 0),
   potential_payout numeric not null,
   is_free_play boolean not null default false, -- paid with free play, not coin_balance
+  spread_at_pick numeric, -- frozen at placement so later line movement can't re-grade this
+  total_at_pick numeric,
   status text not null default 'pending', -- pending | win | loss | push | cancelled
   settled_at timestamptz,
   created_at timestamptz not null default now()
@@ -122,6 +126,8 @@ create table if not exists parlay_legs (
   pick_type text not null, -- 'spread' | 'total' | 'moneyline' | 'outright'
   pick_side text not null,
   odds integer not null, -- american odds captured at placement time
+  spread_at_pick numeric, -- frozen at placement so later line movement can't re-grade this
+  total_at_pick numeric,
   status text not null default 'pending', -- pending | win | loss | push
   settled_at timestamptz
 );

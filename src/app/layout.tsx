@@ -21,6 +21,12 @@ export const metadata: Metadata = {
   description: "Play-money picks and leaderboards with your friends",
 };
 
+// Live bet placement holds for ~10s (re-checking the line hasn't moved)
+// before committing — comfortably under this, but the platform default
+// (10s on some plans) wouldn't be. Applies to every route since the bet
+// slip (and its placeParlayAction) lives in this root layout.
+export const maxDuration = 30;
+
 export default async function RootLayout({
   children,
 }: Readonly<{

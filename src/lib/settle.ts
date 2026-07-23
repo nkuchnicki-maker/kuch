@@ -179,7 +179,9 @@ async function settleMatchupParlayLegs(
     spread: string | null;
     total: string | null;
   }>(
-    `select pl.id, pl.parlay_id, pl.pick_type, pl.pick_side, l.spread, l.total
+    `select pl.id, pl.parlay_id, pl.pick_type, pl.pick_side,
+            coalesce(pl.spread_at_pick, l.spread) as spread,
+            coalesce(pl.total_at_pick, l.total) as total
      from parlay_legs pl
      join lines l on l.id = pl.line_id
      where pl.game_id = $1 and pl.status = 'pending'`,
@@ -262,7 +264,9 @@ export async function settlePicksForGame(
     total: string | null;
   }>(
     `select p.id, p.user_id, p.pick_type, p.pick_side, p.wager, p.potential_payout,
-            p.is_free_play, l.spread, l.total
+            p.is_free_play,
+            coalesce(p.spread_at_pick, l.spread) as spread,
+            coalesce(p.total_at_pick, l.total) as total
      from picks p
      join lines l on l.id = p.line_id
      where p.game_id = $1 and p.status = 'pending'`,

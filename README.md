@@ -161,19 +161,21 @@ To enable it:
    and add two repo secrets:
    - `APP_URL` — your deployed URL, e.g. `https://yourapp.vercel.app`
    - `SYNC_SECRET` — the same value you put in `.env.local` / Vercel's env vars
-3. The workflow runs twice a day (noon and 8pm) by default. You can also
-   trigger it manually from the repo's **Actions** tab (`workflow_dispatch`).
+3. The workflow runs every 15 minutes by default. You can also trigger it
+   manually from the repo's **Actions** tab (`workflow_dispatch`).
 
 ### A note on the free tier's request budget
 
-The Odds API's free tier gives ~500 credits/month. Measured (not estimated)
-costs per call: an odds request (h2h + spreads + totals, 1 region) is
-**3 credits per sport**, a scores check is **2 credits per sport**, and a
-golf outrights request is **1 credit per tournament**. With all 6 sports +
-4 golf tournaments tracked, one full sync run costs **~34 credits**
-(6 × (3+2) + 4). Twice a day already exceeds the monthly free budget
-(60 runs × 34 = 2,040 credits vs. 500 available) — you'll likely exhaust
-the free tier well before the month resets. If you're close to the limit:
+The Odds API's free tier gives ~500 credits/month — a much bigger paid plan
+changes this math entirely (see below). Measured (not estimated) costs per
+call: an odds request (h2h + spreads + totals, 1 region) is **3 credits per
+sport**, a scores check is **2 credits per sport**, and a golf outrights
+request is **1 credit per tournament**. With all 6 sports + 4 golf
+tournaments tracked, one full sync run costs **~34 credits**
+(6 × (3+2) + 4). At every 15 minutes that's ~294,000 credits/month — you
+need a paid plan for this cadence; on the free tier, dial the interval
+back (see below) or you'll exhaust the monthly budget fast. If you're close
+to the limit:
 
 - Widen the cron interval further in `sync-odds.yml` (e.g. once every 2-3
   days keeps you within budget with everything tracked).
@@ -197,35 +199,86 @@ placed against them using whatever odds were last synced.
 
 Keeping those odds genuinely fresh during a live game uses a **second,
 separate, more frequent sync** — [`syncLiveOdds`](src/lib/sync.ts) — wired
-to its own route (`/api/sync/live`) and cron
-([`.github/workflows/sync-live-odds.yml`](.github/workflows/sync-live-odds.yml),
-every 10 minutes by default). It only calls The Odds API for sports that
-currently have a live game in your database — on a day with nothing in
+to its own route (`/api/sync/live`). It only calls The Odds API for sports
+that currently have a live game in your database — on a day with nothing in
 progress it costs **0 credits** (just a cheap database check), so it doesn't
-compound the twice-daily full sync's cost when nothing's happening.
+compound the full sync's cost when nothing's happening.
 
 The cost only shows up during an actual live window: each check that finds
 a live sport costs 5 credits (3 for odds + 2 for scores) for that sport.
-At a 10-minute interval, a single 3-hour game (e.g. an MLB game) means
-~18 checks × 5 credits = 90 credits for that one game's window — and that's
-on top of whatever the twice-daily full sync is already using. If you track
-sports with games most days (MLB in season, for example), this adds up fast
-on the free tier. To control it:
 
-- Widen `*/10 * * * *` to something like every 20-30 minutes in
-  `sync-live-odds.yml`.
+#### Getting to a ~40-second refresh with only GitHub Actions
+
+GitHub Actions can't reliably schedule a workflow more often than every 5
+minutes — shorter cron intervals get silently throttled. To still get
+near-continuous live odds, [`sync-live-odds.yml`](.github/workflows/sync-live-odds.yml)
+fires on that 5-minute floor, but the job itself loops internally, polling
+`/api/sync/live` every 40 seconds for most of that window; consecutive
+5-minute runs chain together into effectively continuous ~40-second
+coverage without needing any infrastructure beyond GitHub Actions.
+
+At a 40-second interval, a single 3-hour live game costs
+~270 checks × 5 credits = 1,350 credits for that one game's window — this
+needs a decent credit budget (a paid Odds API plan) to run comfortably
+across a whole season. To control it on a smaller budget:
+
+- Widen the loop's `sleep 40` (and the `end=$((SECONDS + 260))` window if
+  you also change the outer cron) in `sync-live-odds.yml`.
 - Narrow `TRACKED_SPORTS` in `src/lib/sync.ts` to just the sport(s) you
   actually want live odds for — the live sync reuses that same list.
 - Set up the GitHub Actions repo secrets (`APP_URL`, `SYNC_SECRET` — same
   values as the full sync workflow) to actually enable this cron; without
   them it simply never fires, and live games just keep the odds from
   whenever you last ran a manual/full sync.
-- A paid Odds API plan removes the pressure entirely if you want tight,
-  frequent live updates across several sports at once.
 
-GitHub Actions' own scheduling isn't perfectly precise at short intervals
+GitHub Actions' own scheduling isn't perfectly precise even at 5 minutes
 either — expect firing times to drift by a few minutes, especially on the
-free tier.
+free tier, which is part of why the internal loop runs a little past the
+nominal 5-minute mark rather than stopping exactly at it.
+
+## Bet integrity (line movement, market locks, and the live-bet hold)
+
+Sportsbook-style protection against betting on a number that's about to
+change, all in [`src/lib/marketLock.ts`](src/lib/marketLock.ts):
+
+- **Big-move detection.** Every sync (prematch or live) compares the
+  incoming odds to what was already stored. A move counts as "big" if a
+  spread or total shifts by **1.5 or more**, or a moneyline by **40 or
+  more** — tune `BIG_MOVE_THRESHOLDS` if these feel too twitchy or too
+  loose once this is running against real games.
+- **Market locks.** A live game's line locks for **60 seconds**
+  (`LOCK_DURATION_SECONDS`) whenever its score changes (a scoring play —
+  the clearest possible signal a "big play" just happened) or its odds move
+  big while live. Prematch big moves just get flagged
+  (`lines.last_big_move_at`) for visibility — there's no lock before
+  kickoff. A locked game shows a **"Market Locked"** badge on Live Sports.
+- **The 10-second hold.** Placing a bet on a game that's *currently live*
+  captures the line at submission, waits `BET_HOLD_SECONDS` (10s), then
+  re-checks the line and lock state right before committing — long enough
+  for a big play mid-processing to show up. A small move during that
+  window still goes through at the originally-shown number; a big move or
+  a lock rejects the bet outright (no debit). A **"Processing your
+  bet…"** modal shows during the hold, resolving to **Bet Accepted** or
+  **Bet Rejected** with the reason. Pre-match bets skip all of this and
+  place instantly, same as always.
+- **Frozen grading.** A spread/total pick or parlay leg freezes the number
+  it was placed against (`spread_at_pick`/`total_at_pick`) instead of
+  being graded against whatever the line says at settlement time — this is
+  what makes the hold meaningful in the first place; otherwise a bet could
+  survive the hold and still get re-graded against a moved number later.
+  Moneyline picks already froze their odds via `potential_payout`, so they
+  didn't need this.
+
+This holds/locks parlays too: a parlay with any live leg gets held once
+for the *whole* parlay (not once per leg), and every live leg is
+re-verified after that single wait — one big move or lock on any leg
+rejects the entire parlay, none of it partially places.
+
+The 10-second hold runs inside a server action, which on some Vercel plans
+would otherwise hit the platform's default execution timeout — `layout.tsx`
+sets `export const maxDuration = 30` (route segment config applies to every
+Server Action invoked from that layout, which covers the bet slip since it
+lives there) to give it room.
 
 ## Weekly reset
 
