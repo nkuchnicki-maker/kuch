@@ -264,12 +264,16 @@ matters.
 ## Look & feel
 
 The login screen's backdrop is a full-bleed SVG banner
-([`src/app/components/SportsHeroBanner.tsx`](src/app/components/SportsHeroBanner.tsx)):
-three white Olympic-pictogram-style athlete silhouettes (football runner,
-basketball dunk, golf follow-through) over the app's navy/teal gradient
-with stadium light beams and a scoreboard dot grid. The figures are thick
-round-capped SVG strokes — generic, no photos, nothing to license, and it
-weighs nothing compared to images.
+([`src/app/components/SportsHeroBanner.tsx`](src/app/components/SportsHeroBanner.tsx))
+over the app's navy/teal gradient, stadium light beams, and a scoreboard
+dot grid. The three white athlete silhouettes on it (a football tackle,
+a basketball dunk, a golf follow-through) aren't hand-drawn — they're
+real vector traces of actual sports action photos (Pexels free license;
+the source photos themselves aren't in this repo, just the traced
+outlines), run through person segmentation and potrace to get real body
+proportions and poses instead of generic clip-art shapes. The golf
+club is drawn separately as a line + ellipse since segmentation loses
+thin shafts.
 
 ## Bet integrity (line movement, market locks, and the live-bet hold)
 
@@ -509,8 +513,17 @@ wager field whenever the signed-in user has a free-play balance above $0.
 
 The **Users** page (`/users`) is visible to admins and any account flagged
 **"Is agent"** in Admin. Everyone who can see the page sees *every* user's
-balance from the last completed week (reusing the same data as History)
-and current free play — visibility isn't restricted by agent code.
+current balance, min balance, free play, and anything they still have
+pending (a live table, not a snapshot) — visibility isn't restricted by
+agent code.
+
+Each pending pick/parlay shown has a **✕** button that cancels it and
+refunds the wager in full (same math as a push — real money back via
+`coin_transactions` reason `pick_refund`, free play back to `free_play`),
+via `cancelPickAction`/`cancelParlayAction` in
+[`src/app/users/actions.ts`](src/app/users/actions.ts). This is for
+cleaning up a mistaken or unwanted bet on the spot, without waiting for
+the game to settle — it doesn't touch the game or line itself.
 
 An account that's an agent but *not* an admin gets a stripped-down nav —
 just **Leaderboard**, **History**, and **Users**. Lines, Live Sports, My
