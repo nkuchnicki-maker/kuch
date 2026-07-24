@@ -253,6 +253,14 @@ silently (the extra detail just doesn't show) rather than break the page,
 and it never feeds odds, scores, or settlement — that's still all The Odds
 API, unchanged.
 
+Live Sports also auto-refreshes itself every 20 seconds
+([`src/app/live-sports/LiveRefresher.tsx`](src/app/live-sports/LiveRefresher.tsx),
+a small client component that calls Next's `router.refresh()` on an
+interval) so scores, odds, market locks, and the game clock update on
+their own — no manual reload needed. The Lines (prematch) page doesn't
+auto-refresh, since nothing on it changes on a timescale where that
+matters.
+
 ## Bet integrity (line movement, market locks, and the live-bet hold)
 
 Sportsbook-style protection against betting on a number that's about to

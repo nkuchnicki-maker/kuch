@@ -7,6 +7,7 @@ import { isCurrentlyLocked } from "@/lib/marketLock";
 import { fetchEspnGameStates, espnGameKey, type EspnGameState } from "@/lib/espnScores";
 import SportFilter from "../lines/SportFilter";
 import PickForm from "../lines/PickForm";
+import LiveRefresher from "./LiveRefresher";
 
 type LiveGameRow = {
   id: string;
@@ -64,6 +65,7 @@ export default async function LiveSportsPage({
 
   return (
     <div className="min-h-screen bg-slate-950 p-6 text-slate-100">
+      <LiveRefresher intervalMs={20000} />
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-emerald-400">
           Bettor Edge — Live
