@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser, isAgentOnly } from "@/lib/auth";
-import { STANDARD_JUICE } from "@/lib/odds";
+import { STANDARD_JUICE, formatAmericanOdds } from "@/lib/odds";
 import { formatMoney } from "@/lib/format";
 import SportFilter from "./SportFilter";
 import PickForm from "./PickForm";
@@ -29,7 +29,7 @@ export default async function LinesPage({
   searchParams: Promise<{ sport?: string }>;
 }) {
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/api/session-expired");
   if (isAgentOnly(user)) redirect("/users");
 
   const { sport: selectedSport = "" } = await searchParams;
@@ -140,12 +140,12 @@ export default async function LinesPage({
                       options={[
                         {
                           value: "home",
-                          label: `${g.home_team} ${spread > 0 ? "+" : ""}${spread}`,
+                          label: `${g.home_team} ${spread > 0 ? "+" : ""}${spread} (${formatAmericanOdds(STANDARD_JUICE)})`,
                           odds: STANDARD_JUICE,
                         },
                         {
                           value: "away",
-                          label: `${g.away_team} ${-spread > 0 ? "+" : ""}${-spread}`,
+                          label: `${g.away_team} ${-spread > 0 ? "+" : ""}${-spread} (${formatAmericanOdds(STANDARD_JUICE)})`,
                           odds: STANDARD_JUICE,
                         },
                       ]}
@@ -159,8 +159,16 @@ export default async function LinesPage({
                       pickType="total"
                       label="Total"
                       options={[
-                        { value: "over", label: `Over ${total}`, odds: STANDARD_JUICE },
-                        { value: "under", label: `Under ${total}`, odds: STANDARD_JUICE },
+                        {
+                          value: "over",
+                          label: `Over ${total} (${formatAmericanOdds(STANDARD_JUICE)})`,
+                          odds: STANDARD_JUICE,
+                        },
+                        {
+                          value: "under",
+                          label: `Under ${total} (${formatAmericanOdds(STANDARD_JUICE)})`,
+                          odds: STANDARD_JUICE,
+                        },
                       ]}
                       freePlayBalance={Number(user.free_play)}
                     />

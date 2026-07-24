@@ -8,7 +8,7 @@ import AgentBreakdown from "./AgentBreakdown";
 
 export default async function HistoryPage() {
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/api/session-expired");
 
   if (!user.is_admin && !user.is_agent) {
     return (

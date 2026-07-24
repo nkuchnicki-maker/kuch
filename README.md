@@ -236,6 +236,23 @@ either — expect firing times to drift by a few minutes, especially on the
 free tier, which is part of why the internal loop runs a little past the
 nominal 5-minute mark rather than stopping exactly at it.
 
+## Odds display and live game state
+
+Every spread and total option now shows its price next to it (e.g. `Home
+-3.5 (-110)`), not just moneyline — previously the standard -110 juice was
+applied silently. See `formatAmericanOdds` in
+[`src/lib/odds.ts`](src/lib/odds.ts).
+
+Live Sports also shows the current period/clock next to the score (e.g.
+`8:42 - 3rd Quarter`, `Bot 6th`) via ESPN's public scoreboard endpoint
+([`src/lib/espnScores.ts`](src/lib/espnScores.ts)) — one fetch per sport
+with a live game, matched to our games by team name. This is purely a
+display enhancement: it's a free, unofficial, undocumented endpoint that
+could change shape or go away without notice, so it's wrapped to fail
+silently (the extra detail just doesn't show) rather than break the page,
+and it never feeds odds, scores, or settlement — that's still all The Odds
+API, unchanged.
+
 ## Bet integrity (line movement, market locks, and the live-bet hold)
 
 Sportsbook-style protection against betting on a number that's about to

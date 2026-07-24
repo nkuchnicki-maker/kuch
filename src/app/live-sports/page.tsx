@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser, isAgentOnly } from "@/lib/auth";
-import { STANDARD_JUICE } from "@/lib/odds";
+import { STANDARD_JUICE, formatAmericanOdds } from "@/lib/odds";
 import { formatMoney } from "@/lib/format";
 import { isCurrentlyLocked } from "@/lib/marketLock";
+import { fetchEspnGameStates, espnGameKey, type EspnGameState } from "@/lib/espnScores";
 import SportFilter from "../lines/SportFilter";
 import PickForm from "../lines/PickForm";
 
@@ -28,7 +29,7 @@ export default async function LiveSportsPage({
   searchParams: Promise<{ sport?: string }>;
 }) {
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/api/session-expired");
   if (isAgentOnly(user)) redirect("/users");
 
   const { sport: selectedSport = "" } = await searchParams;
@@ -49,6 +50,17 @@ export default async function LiveSportsPage({
   const games = selectedSport
     ? allGames.filter((g) => g.sport === selectedSport)
     : allGames;
+
+  // One ESPN scoreboard fetch per distinct sport with a live game, not per
+  // game — informational only (see src/lib/espnScores.ts), never used for
+  // odds/settlement.
+  const gameStatesBySport = await Promise.all(
+    sports.map(async (sport) => [sport, await fetchEspnGameStates(sport)] as const),
+  );
+  const gameStates = new Map<string, EspnGameState>();
+  for (const [, states] of gameStatesBySport) {
+    for (const [key, state] of states) gameStates.set(key, state);
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 p-6 text-slate-100">
@@ -83,6 +95,7 @@ export default async function LiveSportsPage({
             const spread = g.spread != null ? Number(g.spread) : null;
             const total = g.total != null ? Number(g.total) : null;
             const locked = isCurrentlyLocked(g.locked_until);
+            const gameState = gameStates.get(espnGameKey(g.home_team, g.away_team));
             return (
               <div
                 key={g.id}
@@ -107,6 +120,11 @@ export default async function LiveSportsPage({
                     {g.home_score != null && g.away_score != null && (
                       <div className="text-sm font-mono text-slate-300">
                         {g.away_team} {g.away_score} — {g.home_team} {g.home_score}
+                        {gameState && (
+                          <span className="ml-2 font-sans text-xs text-slate-500">
+                            {gameState.detail}
+                          </span>
+                        )}
                       </div>
                     )}
                     {locked && (
@@ -128,12 +146,12 @@ export default async function LiveSportsPage({
                       options={[
                         {
                           value: "home",
-                          label: `${g.home_team} ${spread > 0 ? "+" : ""}${spread}`,
+                          label: `${g.home_team} ${spread > 0 ? "+" : ""}${spread} (${formatAmericanOdds(STANDARD_JUICE)})`,
                           odds: STANDARD_JUICE,
                         },
                         {
                           value: "away",
-                          label: `${g.away_team} ${-spread > 0 ? "+" : ""}${-spread}`,
+                          label: `${g.away_team} ${-spread > 0 ? "+" : ""}${-spread} (${formatAmericanOdds(STANDARD_JUICE)})`,
                           odds: STANDARD_JUICE,
                         },
                       ]}
@@ -147,8 +165,16 @@ export default async function LiveSportsPage({
                       pickType="total"
                       label="Total"
                       options={[
-                        { value: "over", label: `Over ${total}`, odds: STANDARD_JUICE },
-                        { value: "under", label: `Under ${total}`, odds: STANDARD_JUICE },
+                        {
+                          value: "over",
+                          label: `Over ${total} (${formatAmericanOdds(STANDARD_JUICE)})`,
+                          odds: STANDARD_JUICE,
+                        },
+                        {
+                          value: "under",
+                          label: `Under ${total} (${formatAmericanOdds(STANDARD_JUICE)})`,
+                          odds: STANDARD_JUICE,
+                        },
                       ]}
                       freePlayBalance={Number(user.free_play)}
                     />

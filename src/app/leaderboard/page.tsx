@@ -48,7 +48,7 @@ type FeedItem = {
 
 export default async function LeaderboardPage() {
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/api/session-expired");
 
   const [{ rows: standings }, { rows: pickFeed }, { rows: parlayFeed }] =
     await Promise.all([

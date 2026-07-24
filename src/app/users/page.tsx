@@ -19,7 +19,7 @@ type UserRow = {
 
 export default async function UsersPage() {
   const viewer = await getCurrentUser();
-  if (!viewer) redirect("/login");
+  if (!viewer) redirect("/api/session-expired");
 
   if (!viewer.is_admin && !viewer.is_agent) {
     return (

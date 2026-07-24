@@ -48,7 +48,7 @@ type GameRow = {
 
 export default async function AdminPage() {
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/api/session-expired");
 
   if (!user.is_admin) {
     return (

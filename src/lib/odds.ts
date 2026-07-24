@@ -14,3 +14,8 @@ export function payoutForOdds(odds: number, wager: number): number {
 export function americanToDecimal(odds: number): number {
   return odds > 0 ? 1 + odds / 100 : 1 + 100 / Math.abs(odds);
 }
+
+// "+150" / "-110" — American odds always show an explicit sign.
+export function formatAmericanOdds(odds: number): string {
+  return odds > 0 ? `+${odds}` : `${odds}`;
+}

@@ -50,7 +50,7 @@ type Parlay = {
 
 export default async function MyPicksPage() {
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/api/session-expired");
   if (isAgentOnly(user)) redirect("/users");
 
   const [{ rows: picks }, { rows: parlayLegRows }] = await Promise.all([
