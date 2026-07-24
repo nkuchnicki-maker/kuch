@@ -26,7 +26,7 @@ export async function placePickAction(formData: FormData) {
   const isFreePlay = formData.get("isFreePlay") === "true";
 
   if (!Number.isFinite(wager) || wager <= 0) {
-    throw new Error("Wager must be a positive number");
+    throw new Error("Bet rejected: wager must be a positive number");
   }
 
   // Forces a fresh, authoritative score check right now if this game is
@@ -41,24 +41,24 @@ export async function placePickAction(formData: FormData) {
   );
   const game = gameRows[0];
   if (!game || !["scheduled", "live"].includes(game.status)) {
-    throw new Error("This game is no longer open for picks");
+    throw new Error("Bet rejected: this game is no longer open for picks");
   }
   // Belt-and-suspenders alongside the /lines page's start_time filter — a
   // stale-rendered pre-match form could otherwise still submit right after
   // kickoff, before the next sync flips status to 'live'.
   if (game.status === "scheduled" && new Date(game.start_time) <= new Date()) {
-    throw new Error("This game has already started — check Live Sports for the current line");
+    throw new Error("Bet rejected: this game already started — check Live Sports for the current line");
   }
   const gameStatus = game.status;
 
   // Fail fast before wasting a live bet's 10-second hold on a bet that's
   // doomed anyway — re-checked again inside the transaction below.
   if (await hasOpenPickOnGame(db, user.id, gameId)) {
-    throw new Error("You already have an open pick on this game");
+    throw new Error("Bet rejected: you already have an open pick on this game");
   }
 
   const line = await fetchLineSnapshot(db, lineId);
-  if (!line) throw new Error("Line not found");
+  if (!line) throw new Error("Bet rejected: line not found");
 
   const odds =
     pickType === "moneyline"
@@ -67,7 +67,7 @@ export async function placePickAction(formData: FormData) {
         : line.moneylineAway
       : STANDARD_JUICE;
 
-  if (odds == null) throw new Error("Odds unavailable for that pick");
+  if (odds == null) throw new Error("Bet rejected: odds unavailable for that pick");
 
   const potentialPayout = payoutForOdds(odds, wager);
   const spreadAtPick = pickType === "spread" ? line.spread : null;
@@ -90,7 +90,7 @@ export async function placePickAction(formData: FormData) {
       [gameId],
     );
     if (postHoldRows[0]?.status !== "live") {
-      throw new Error("Bet rejected — this game just ended while your bet was processing");
+      throw new Error("Bet rejected: this game just ended while your bet was processing");
     }
   }
 
@@ -105,7 +105,7 @@ export async function placePickAction(formData: FormData) {
     }
 
     if (await hasOpenPickOnGame(client, user.id, gameId)) {
-      throw new Error("You already have an open pick on this game");
+      throw new Error("Bet rejected: you already have an open pick on this game");
     }
 
     const { rows: pickRows } = await client.query<{ id: string }>(
@@ -172,13 +172,13 @@ export async function placeParlayAction(
   await enforceBetRateLimit(db, user.id);
 
   if (!Array.isArray(legs) || legs.length < 2) {
-    throw new Error("A parlay needs at least 2 picks");
+    throw new Error("Bet rejected: a parlay needs at least 2 picks");
   }
   if (!Number.isFinite(wager) || wager <= 0) {
-    throw new Error("Wager must be a positive number");
+    throw new Error("Bet rejected: wager must be a positive number");
   }
   if (new Set(legs.map((l) => l.gameId)).size !== legs.length) {
-    throw new Error("Can't include two picks from the same game in a parlay");
+    throw new Error("Bet rejected: can't include two picks from the same game in a parlay");
   }
 
   // Re-derive real odds server-side for every leg — never trust odds from
@@ -200,15 +200,15 @@ export async function placeParlayAction(
     );
     const legGame = gameRows[0];
     if (!legGame || !["scheduled", "live"].includes(legGame.status)) {
-      throw new Error("One of your picks is no longer open");
+      throw new Error("Bet rejected: one of your picks is no longer open");
     }
     if (legGame.status === "scheduled" && new Date(legGame.start_time) <= new Date()) {
-      throw new Error("One of your picks has already started — check Live Sports for the current line");
+      throw new Error("Bet rejected: one of your picks already started — check Live Sports for the current line");
     }
     const gameStatus = legGame.status;
 
     if (await hasOpenPickOnGame(db, user.id, leg.gameId)) {
-      throw new Error("You already have an open pick on one of these games");
+      throw new Error("Bet rejected: you already have an open pick on one of these games");
     }
 
     let odds: number | null;
@@ -229,7 +229,7 @@ export async function placeParlayAction(
       };
     } else {
       const snap = await fetchLineSnapshot(db, leg.lineId);
-      if (!snap) throw new Error("Line not found for one of your picks");
+      if (!snap) throw new Error("Bet rejected: line not found for one of your picks");
       snapshot = snap;
       odds =
         leg.pickType === "moneyline"
@@ -239,7 +239,7 @@ export async function placeParlayAction(
           : STANDARD_JUICE;
     }
 
-    if (odds == null) throw new Error("Odds unavailable for one of your picks");
+    if (odds == null) throw new Error("Bet rejected: odds unavailable for one of your picks");
 
     resolvedLegs.push({
       ...leg,
@@ -281,7 +281,7 @@ export async function placeParlayAction(
       [leg.gameId],
     );
     if (postHoldRows[0]?.status !== "live") {
-      throw new Error("Bet rejected — one of your live picks' games just ended while your bet was processing");
+      throw new Error("Bet rejected: one of your live picks' games just ended while your bet was processing");
     }
   }
 
@@ -297,7 +297,7 @@ export async function placeParlayAction(
 
     for (const leg of resolvedLegs) {
       if (await hasOpenPickOnGame(client, user.id, leg.gameId)) {
-        throw new Error("You already have an open pick on one of these games");
+        throw new Error("Bet rejected: you already have an open pick on one of these games");
       }
     }
 
@@ -361,9 +361,9 @@ export async function placeOutrightPickAction(formData: FormData) {
   const wager = Number(formData.get("wager"));
   const isFreePlay = formData.get("isFreePlay") === "true";
 
-  if (!participantName) throw new Error("Pick a player");
+  if (!participantName) throw new Error("Bet rejected: pick a player");
   if (!Number.isFinite(wager) || wager <= 0) {
-    throw new Error("Wager must be a positive number");
+    throw new Error("Bet rejected: wager must be a positive number");
   }
 
   const { rows: gameRows } = await db.query<{ status: string }>(
@@ -371,11 +371,11 @@ export async function placeOutrightPickAction(formData: FormData) {
     [gameId],
   );
   if (!gameRows[0] || gameRows[0].status !== "scheduled") {
-    throw new Error("This event is no longer open for picks");
+    throw new Error("Bet rejected: this event is no longer open for picks");
   }
 
   if (await hasOpenPickOnGame(db, user.id, gameId)) {
-    throw new Error("You already have an open pick on this event");
+    throw new Error("Bet rejected: you already have an open pick on this event");
   }
 
   const { rows: lineRows } = await db.query<{
@@ -384,7 +384,7 @@ export async function placeOutrightPickAction(formData: FormData) {
   const participant = lineRows[0]?.outrights?.find(
     (p) => p.name === participantName,
   );
-  if (!participant) throw new Error("Player not found in this field");
+  if (!participant) throw new Error("Bet rejected: player not found in this field");
 
   const potentialPayout = payoutForOdds(participant.odds, wager);
 
@@ -399,7 +399,7 @@ export async function placeOutrightPickAction(formData: FormData) {
     }
 
     if (await hasOpenPickOnGame(client, user.id, gameId)) {
-      throw new Error("You already have an open pick on this event");
+      throw new Error("Bet rejected: you already have an open pick on this event");
     }
 
     const { rows: pickRows } = await client.query<{ id: string }>(

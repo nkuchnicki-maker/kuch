@@ -23,7 +23,7 @@ export async function enforceBetRateLimit(
   );
   const lastAt = rows[0]?.last_at;
   if (lastAt && Date.now() - new Date(lastAt).getTime() < MIN_SECONDS_BETWEEN_BETS * 1000) {
-    throw new Error("You're placing bets too quickly — wait a couple seconds and try again");
+    throw new Error("Bet rejected: you're placing bets too quickly — wait a couple seconds");
   }
 }
 
@@ -70,7 +70,7 @@ export async function debitForWager(
 
   if (balance - wager < minBalance) {
     throw new Error(
-      `That wager would take you below your minimum balance of ${formatMoney(minBalance)}`,
+      `Bet rejected: balance too low — that wager would put you below your minimum of ${formatMoney(minBalance)}`,
     );
   }
 
@@ -93,6 +93,6 @@ export async function debitFreePlay(
     [wager, userId],
   );
   if (rows.length === 0) {
-    throw new Error("Not enough free play for that wager");
+    throw new Error("Bet rejected: not enough free play for that wager");
   }
 }

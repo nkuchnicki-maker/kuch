@@ -159,6 +159,7 @@ export default async function LiveSportsPage({
                         },
                       ]}
                       freePlayBalance={Number(user.free_play)}
+                      locked={locked}
                     />
                   )}
                   {total != null && (
@@ -180,6 +181,7 @@ export default async function LiveSportsPage({
                         },
                       ]}
                       freePlayBalance={Number(user.free_play)}
+                      locked={locked}
                     />
                   )}
                   {g.moneyline_home != null && g.moneyline_away != null && (
@@ -201,6 +203,7 @@ export default async function LiveSportsPage({
                         },
                       ]}
                       freePlayBalance={Number(user.free_play)}
+                      locked={locked}
                     />
                   )}
                 </div>

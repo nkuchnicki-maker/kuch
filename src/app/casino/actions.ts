@@ -18,10 +18,10 @@ import {
 
 function validateWager(wager: number) {
   if (!Number.isFinite(wager) || wager <= 0) {
-    throw new Error("Wager must be a positive number");
+    throw new Error("Bet rejected: wager must be a positive number");
   }
   if (wager > MAX_CASINO_WAGER) {
-    throw new Error(`Wager can't exceed $${MAX_CASINO_WAGER} per hand`);
+    throw new Error(`Bet rejected: wager can't exceed $${MAX_CASINO_WAGER} per hand`);
   }
 }
 
@@ -158,7 +158,7 @@ export async function placeRouletteBetAction(
     betType === "number" &&
     (betNumber == null || !Number.isInteger(betNumber) || betNumber < 0 || betNumber > 36)
   ) {
-    throw new Error("Pick a number from 0-36");
+    throw new Error("Bet rejected: pick a number from 0-36");
   }
 
   const result = spinRoulette(betType, betType === "number" ? betNumber : undefined);
@@ -225,7 +225,7 @@ export async function hitBlackjackAction(token: string): Promise<BlackjackHitRes
   await blockIfAgentOnly(user);
 
   const result = hitBlackjackHand(token, user.id);
-  if (!result) throw new Error("This hand is no longer valid — start a new one");
+  if (!result) throw new Error("Bet rejected: this hand is no longer valid — start a new one");
 
   if (result.finished) {
     await creditCasinoRound(
@@ -247,7 +247,7 @@ export async function standBlackjackAction(token: string): Promise<BlackjackReso
   await blockIfAgentOnly(user);
 
   const result = standBlackjackHand(token, user.id);
-  if (!result) throw new Error("This hand is no longer valid — start a new one");
+  if (!result) throw new Error("Bet rejected: this hand is no longer valid — start a new one");
 
   await creditCasinoRound(
     user.id,

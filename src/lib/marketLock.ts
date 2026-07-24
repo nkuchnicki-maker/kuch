@@ -110,7 +110,7 @@ export async function holdForLiveBet(db: Pool, legs: LiveBetLeg[]): Promise<void
   for (const leg of liveLegs) {
     if (isCurrentlyLocked(leg.before.lockedUntil)) {
       throw new Error(
-        "This market is temporarily locked after a big play — try again in a moment",
+        "Bet rejected: market locked 🔒 — a big play just happened, try again in a moment",
       );
     }
   }
@@ -119,10 +119,10 @@ export async function holdForLiveBet(db: Pool, legs: LiveBetLeg[]): Promise<void
 
   for (const leg of liveLegs) {
     const after = await fetchLineSnapshot(db, leg.lineId);
-    if (!after) throw new Error("Bet rejected — this line is no longer available");
+    if (!after) throw new Error("Bet rejected: this line is no longer available");
     if (isCurrentlyLocked(after.lockedUntil)) {
       throw new Error(
-        "Bet rejected — the market locked while your bet was processing (a big play just happened)",
+        "Bet rejected: market locked 🔒 — a big play happened while your bet was processing",
       );
     }
 
@@ -131,7 +131,7 @@ export async function holdForLiveBet(db: Pool, legs: LiveBetLeg[]): Promise<void
     const beforeValue = relevantValue(leg.before, leg.pickType, leg.pickSide);
     const afterValue = relevantValue(after, leg.pickType, leg.pickSide);
     if (isBigMove(beforeValue, afterValue, kind)) {
-      throw new Error("Bet rejected — the line moved while your bet was processing");
+      throw new Error("Bet rejected: the line moved while your bet was processing");
     }
   }
 }

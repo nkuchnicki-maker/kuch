@@ -13,6 +13,7 @@ export default function PickForm({
   label,
   options,
   freePlayBalance = 0,
+  locked = false,
 }: {
   gameId: string;
   lineId: string;
@@ -20,6 +21,7 @@ export default function PickForm({
   label: string;
   options: { value: string; label: string; odds: number }[];
   freePlayBalance?: number;
+  locked?: boolean;
 }) {
   const { addLeg } = useBetSlip();
   const [pickSide, setPickSide] = useState("");
@@ -30,7 +32,7 @@ export default function PickForm({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!pickSide || !wager) return;
+    if (!pickSide || !wager || locked) return;
 
     setPhase("processing");
     setMessage(undefined);
@@ -62,8 +64,18 @@ export default function PickForm({
         onSubmit={handleSubmit}
         className="rounded-lg border border-slate-800 bg-slate-950 p-3"
       >
-        <div className="mb-2 text-xs font-semibold uppercase text-slate-500">
-          {label}
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-xs font-semibold uppercase text-slate-500">
+            {label}
+          </span>
+          {locked && (
+            <span
+              title="Market locked after a big play"
+              className="text-xs font-semibold text-amber-400"
+            >
+              🔒 Locked
+            </span>
+          )}
         </div>
         <div className="mb-2 space-y-1">
           {options.map((opt) => (
@@ -100,18 +112,30 @@ export default function PickForm({
           ))}
         </div>
         <div className="flex gap-2">
-          <input
-            value={wager}
-            onChange={(e) => setWager(e.target.value)}
-            type="number"
-            min={1}
-            placeholder="$ amount"
-            required
-            className="w-full rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-sm"
-          />
+          <div className="relative w-full">
+            <input
+              value={wager}
+              onChange={(e) => setWager(e.target.value)}
+              type="number"
+              min={1}
+              placeholder={locked ? "Market locked" : "$ amount"}
+              required
+              disabled={locked}
+              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 pr-7 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+            />
+            {locked && (
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-sm"
+              >
+                🔒
+              </span>
+            )}
+          </div>
           <button
             type="submit"
-            className="whitespace-nowrap rounded-lg bg-emerald-500 px-3 py-1 text-sm font-semibold text-slate-950 hover:bg-emerald-400"
+            disabled={locked}
+            className="whitespace-nowrap rounded-lg bg-emerald-500 px-3 py-1 text-sm font-semibold text-slate-950 hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-500"
           >
             Place
           </button>

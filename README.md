@@ -290,7 +290,11 @@ change, all in [`src/lib/marketLock.ts`](src/lib/marketLock.ts):
   the clearest possible signal a "big play" just happened) or its odds move
   big while live. Prematch big moves just get flagged
   (`lines.last_big_move_at`) for visibility — there's no lock before
-  kickoff. A locked game shows a **"Market Locked"** badge on Live Sports.
+  kickoff. A locked game shows a **"Market Locked"** badge on Live Sports,
+  and every pick form (spread/total/moneyline) for it shows its own **🔒
+  Locked** badge with the wager input disabled and a lock icon inline —
+  right where you'd type the amount, not just a banner elsewhere on the
+  page (`locked` prop on `PickForm`).
 - **The 10-second hold.** Placing a bet on a game that's *currently live*
   captures the line at submission, waits `BET_HOLD_SECONDS` (10s), then
   re-checks the line and lock state right before committing — long enough
@@ -312,6 +316,14 @@ This holds/locks parlays too: a parlay with any live leg gets held once
 for the *whole* parlay (not once per leg), and every live leg is
 re-verified after that single wait — one big move or lock on any leg
 rejects the entire parlay, none of it partially places.
+
+Every rejection reason across picks, parlays, and casino games (min
+balance, market locked, line moved, game already started, rate limit,
+etc.) is worded consistently — always starts with **"Bet rejected: "**
+followed by a short, specific reason (e.g. "balance too low", "market
+locked 🔒") — so it always reads as an obvious rejection, not a generic
+error, and it's easy to grep the codebase for every place a bet can be
+turned down.
 
 The 10-second hold runs inside a server action, which on some Vercel plans
 would otherwise hit the platform's default execution timeout — `layout.tsx`
