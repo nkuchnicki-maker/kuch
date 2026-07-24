@@ -298,6 +298,50 @@ export async function settlePicksForGame(
   await settleMatchupParlayLegs(db, gameId, homeScore, awayScore);
 }
 
+// Voids a game that got postponed/cancelled in real life — refunds every
+// pending straight pick in full (same credit math as a push: stake back,
+// no profit) and drops pending parlay legs on it out of their parlays as
+// pushes (standard parlay reduction), rather than leaving them pending
+// forever with no path to ever settle. Admin-triggered only (see
+// voidGameAction) — there's no reliable automatic way to distinguish "the
+// league postponed this" from "the score feed just hasn't updated yet".
+export async function voidGame(db: Pool, gameId: string): Promise<void> {
+  await db.query("update games set status = 'cancelled' where id = $1", [gameId]);
+
+  const { rows: picks } = await db.query<{
+    id: string;
+    user_id: string;
+    wager: string;
+    potential_payout: string;
+    is_free_play: boolean;
+  }>(
+    `select id, user_id, wager, potential_payout, is_free_play
+     from picks where game_id = $1 and status = 'pending'`,
+    [gameId],
+  );
+  for (const pick of picks) {
+    await db.query(
+      "update picks set status = 'cancelled', settled_at = now() where id = $1",
+      [pick.id],
+    );
+    await creditOutcome(db, pick, "push", "pick");
+  }
+
+  const { rows: legs } = await db.query<{ id: string; parlay_id: string }>(
+    "select id, parlay_id from parlay_legs where game_id = $1 and status = 'pending'",
+    [gameId],
+  );
+  const affectedParlays = new Set<string>();
+  for (const leg of legs) {
+    await db.query(
+      "update parlay_legs set status = 'push', settled_at = now() where id = $1",
+      [leg.id],
+    );
+    affectedParlays.add(leg.parlay_id);
+  }
+  await settleAffectedParlays(db, affectedParlays);
+}
+
 // Settles an outright event (e.g. a golf tournament): every pick naming
 // the declared winner wins, everyone else loses. No push case — if a
 // tournament ends in a tie/playoff, settle against the eventual champion.

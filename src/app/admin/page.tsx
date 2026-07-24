@@ -13,6 +13,7 @@ import {
 import SyncButton from "./SyncButton";
 import ResetWeekButton from "./ResetWeekButton";
 import DeleteUserButton from "./DeleteUserButton";
+import VoidGameButton from "./VoidGameButton";
 import { formatMoney } from "@/lib/format";
 import { AGENTS } from "@/lib/agents";
 
@@ -270,6 +271,7 @@ export default async function AdminPage() {
               <th>Line</th>
               <th>Status</th>
               <th>Settle (final score)</th>
+              <th>Postponed/cancelled?</th>
             </tr>
           </thead>
           <tbody>
@@ -348,6 +350,16 @@ export default async function AdminPage() {
                           Settle
                         </button>
                       </form>
+                    )}
+                  </td>
+                  <td>
+                    {g.status !== "final" && g.status !== "cancelled" ? (
+                      <VoidGameButton
+                        gameId={g.id}
+                        label={isOutright ? g.event_name ?? g.sport : `${g.away_team} @ ${g.home_team}`}
+                      />
+                    ) : (
+                      <span className="text-slate-600">—</span>
                     )}
                   </td>
                 </tr>

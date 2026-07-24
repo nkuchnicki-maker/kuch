@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireAdmin, requireAdminOrAgent, hashPassword } from "@/lib/auth";
 import { isAgent } from "@/lib/agents";
-import { settlePicksForGame, settleOutrightEvent } from "@/lib/settle";
+import { settlePicksForGame, settleOutrightEvent, voidGame } from "@/lib/settle";
 import { syncAllTrackedSports, type SyncSummary } from "@/lib/sync";
 import { forceWeeklyReset, type WeeklyResetResult } from "@/lib/weeklyReset";
 
@@ -226,6 +226,22 @@ export async function settleOutrightAction(formData: FormData) {
   revalidatePath("/admin");
   revalidatePath("/leaderboard");
   revalidatePath("/lines");
+}
+
+// For a game that got postponed/cancelled in real life — refunds every
+// pending pick/parlay leg on it in full rather than leaving them stuck
+// pending forever with no way to ever settle. Called directly from a
+// client component (not a <form action>) so a confirm() dialog can gate
+// it first, same pattern as deleteUserAction.
+export async function voidGameAction(gameId: string) {
+  await requireAdmin();
+
+  await voidGame(db, gameId);
+
+  revalidatePath("/admin");
+  revalidatePath("/leaderboard");
+  revalidatePath("/lines");
+  revalidatePath("/picks");
 }
 
 export async function syncNowAction(): Promise<SyncSummary[]> {

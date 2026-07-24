@@ -280,6 +280,61 @@ sets `export const maxDuration = 30` (route segment config applies to every
 Server Action invoked from that layout, which covers the bet slip since it
 lives there) to give it room.
 
+### Closing the "stale data" gap
+
+The lock/hold system above is *reactive* — it only kicks in once a periodic
+sync (every 40s–5min for live odds) actually notices a move. That leaves a
+real window: if a live game's last update was a while ago (a blowout with
+nothing left to detect, garbage time, the clock just running out), someone
+watching the broadcast could see the game is effectively decided and place a
+"sure thing" bet before the next scheduled poll ever catches up.
+
+To close that, placing a bet on a game that's currently `live` now forces a
+**synchronous, on-demand score check** right at submission time
+(`refreshLiveGameIfNeeded` in [`src/lib/sync.ts`](src/lib/sync.ts)) instead of
+trusting however-stale the DB's cached status is — both right before the
+10-second hold starts, and again right after it ends (catching the rarer
+case where the game finishes during the hold itself). If that check finds
+the game already over, the bet gets rejected outright rather than accepted
+against a foregone conclusion; if it finds a fresh score change, it locks
+the market the same as a normal sync would, so the same live-bet check that
+would have let someone snipe a move is the thing that catches them instead.
+This costs one extra Odds API call per live bet (not per poll), which is
+negligible next to the sync cadence itself. If the freshness check itself
+fails (API hiccup), the bet is rejected rather than silently allowed through
+on unverified data — fail closed, not open.
+
+### Other guardrails
+
+- **One open pick per game.** Previously the "no two legs from the same
+  game" rule only applied *within* a single parlay — nothing stopped
+  placing two separate straight bets on the same game (e.g. spread and
+  moneyline on the same side across two tickets). `hasOpenPickOnGame` in
+  [`src/lib/wager.ts`](src/lib/wager.ts) now blocks placing any new
+  pick/parlay leg on a game you already have a pending pick or parlay leg
+  on, checked both up front (fail fast, before wasting a live bet's hold)
+  and again inside the debit transaction (race-safe against two submissions
+  landing at once).
+- **Placement rate limit.** `enforceBetRateLimit` rejects a new pick/parlay
+  if the same user placed one less than 2 seconds ago — a cheap guardrail
+  against a script hammering the bet-placement actions, which is worse here
+  than usual since a live bet also holds a server invocation open for 10s.
+- **Voiding a postponed/cancelled game.** If a real-world game gets
+  postponed or cancelled, there was previously no way to resolve picks
+  already placed on it — they'd sit `pending` forever and permanently drag
+  down that user's balance on every future weekly reset (pending wagers get
+  subtracted from the fresh starting balance). Admin's Games table now has
+  a **"Cancel/void"** button (`voidGameAction` → `voidGame` in
+  [`src/lib/settle.ts`](src/lib/settle.ts)) that refunds every pending
+  pick/leg on that game in full — same math as a push — and marks the game
+  `cancelled`. This is manual/admin-triggered only; there's no reliable
+  automatic way to tell "the league postponed this" apart from "the score
+  feed just hasn't updated yet".
+- **Constant-time secret check.** The three `/api/*` routes gated by
+  `SYNC_SECRET` now compare it with `crypto.timingSafeEqual`
+  ([`src/lib/apiAuth.ts`](src/lib/apiAuth.ts)) instead of `!==`, removing a
+  (low-value, but free-to-fix) timing side channel.
+
 ## Weekly reset
 
 Every user's `coin_balance` snaps back to their `starting_balance` (set when

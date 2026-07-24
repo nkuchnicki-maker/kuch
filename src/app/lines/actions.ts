@@ -4,12 +4,19 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireUser, blockIfAgentOnly } from "@/lib/auth";
 import { americanToDecimal, payoutForOdds, STANDARD_JUICE } from "@/lib/odds";
-import { debitForWager, debitFreePlay } from "@/lib/wager";
+import {
+  debitForWager,
+  debitFreePlay,
+  enforceBetRateLimit,
+  hasOpenPickOnGame,
+} from "@/lib/wager";
 import { fetchLineSnapshot, holdForLiveBet, type LineSnapshot } from "@/lib/marketLock";
+import { refreshLiveGameIfNeeded } from "@/lib/sync";
 
 export async function placePickAction(formData: FormData) {
   const user = await requireUser();
   await blockIfAgentOnly(user);
+  await enforceBetRateLimit(db, user.id);
 
   const gameId = String(formData.get("gameId"));
   const lineId = String(formData.get("lineId"));
@@ -21,6 +28,12 @@ export async function placePickAction(formData: FormData) {
   if (!Number.isFinite(wager) || wager <= 0) {
     throw new Error("Wager must be a positive number");
   }
+
+  // Forces a fresh, authoritative score check right now if this game is
+  // currently 'live' in our DB — closes the gap where the game actually
+  // ended (or a big play just happened) before the next periodic sync
+  // would have noticed. No-op/no cost for anything not currently live.
+  await refreshLiveGameIfNeeded(db, gameId);
 
   const { rows: gameRows } = await db.query<{ status: string; start_time: string }>(
     "select status, start_time from games where id = $1",
@@ -37,6 +50,12 @@ export async function placePickAction(formData: FormData) {
     throw new Error("This game has already started — check Live Sports for the current line");
   }
   const gameStatus = game.status;
+
+  // Fail fast before wasting a live bet's 10-second hold on a bet that's
+  // doomed anyway — re-checked again inside the transaction below.
+  if (await hasOpenPickOnGame(db, user.id, gameId)) {
+    throw new Error("You already have an open pick on this game");
+  }
 
   const line = await fetchLineSnapshot(db, lineId);
   if (!line) throw new Error("Line not found");
@@ -61,6 +80,20 @@ export async function placePickAction(formData: FormData) {
     { lineId, gameStatus, pickType, pickSide, before: line },
   ]);
 
+  // The game could have finished during the 10-second hold itself — catch
+  // that here rather than inserting a pick that would otherwise never get
+  // picked up by settlement again (syncs skip games already 'final').
+  if (gameStatus === "live") {
+    await refreshLiveGameIfNeeded(db, gameId);
+    const { rows: postHoldRows } = await db.query<{ status: string }>(
+      "select status from games where id = $1",
+      [gameId],
+    );
+    if (postHoldRows[0]?.status !== "live") {
+      throw new Error("Bet rejected — this game just ended while your bet was processing");
+    }
+  }
+
   const client = await db.connect();
   try {
     await client.query("begin");
@@ -69,6 +102,10 @@ export async function placePickAction(formData: FormData) {
       await debitFreePlay(client, user.id, wager);
     } else {
       await debitForWager(client, user.id, wager);
+    }
+
+    if (await hasOpenPickOnGame(client, user.id, gameId)) {
+      throw new Error("You already have an open pick on this game");
     }
 
     const { rows: pickRows } = await client.query<{ id: string }>(
@@ -132,6 +169,7 @@ export async function placeParlayAction(
 ) {
   const user = await requireUser();
   await blockIfAgentOnly(user);
+  await enforceBetRateLimit(db, user.id);
 
   if (!Array.isArray(legs) || legs.length < 2) {
     throw new Error("A parlay needs at least 2 picks");
@@ -154,6 +192,8 @@ export async function placeParlayAction(
   })[] = [];
 
   for (const leg of legs) {
+    await refreshLiveGameIfNeeded(db, leg.gameId);
+
     const { rows: gameRows } = await db.query<{ status: string; start_time: string }>(
       "select status, start_time from games where id = $1",
       [leg.gameId],
@@ -166,6 +206,10 @@ export async function placeParlayAction(
       throw new Error("One of your picks has already started — check Live Sports for the current line");
     }
     const gameStatus = legGame.status;
+
+    if (await hasOpenPickOnGame(db, user.id, leg.gameId)) {
+      throw new Error("You already have an open pick on one of these games");
+    }
 
     let odds: number | null;
     let snapshot: LineSnapshot;
@@ -227,6 +271,20 @@ export async function placeParlayAction(
     })),
   );
 
+  // Same mid-hold-completion check as the single-pick path, per live leg —
+  // reject the whole parlay if any live leg's game just ended.
+  for (const leg of resolvedLegs) {
+    if (leg.gameStatus !== "live") continue;
+    await refreshLiveGameIfNeeded(db, leg.gameId);
+    const { rows: postHoldRows } = await db.query<{ status: string }>(
+      "select status from games where id = $1",
+      [leg.gameId],
+    );
+    if (postHoldRows[0]?.status !== "live") {
+      throw new Error("Bet rejected — one of your live picks' games just ended while your bet was processing");
+    }
+  }
+
   const client = await db.connect();
   try {
     await client.query("begin");
@@ -235,6 +293,12 @@ export async function placeParlayAction(
       await debitFreePlay(client, user.id, wager);
     } else {
       await debitForWager(client, user.id, wager);
+    }
+
+    for (const leg of resolvedLegs) {
+      if (await hasOpenPickOnGame(client, user.id, leg.gameId)) {
+        throw new Error("You already have an open pick on one of these games");
+      }
     }
 
     const { rows: parlayRows } = await client.query<{ id: string }>(
@@ -289,6 +353,7 @@ export async function placeParlayAction(
 export async function placeOutrightPickAction(formData: FormData) {
   const user = await requireUser();
   await blockIfAgentOnly(user);
+  await enforceBetRateLimit(db, user.id);
 
   const gameId = String(formData.get("gameId"));
   const lineId = String(formData.get("lineId"));
@@ -309,6 +374,10 @@ export async function placeOutrightPickAction(formData: FormData) {
     throw new Error("This event is no longer open for picks");
   }
 
+  if (await hasOpenPickOnGame(db, user.id, gameId)) {
+    throw new Error("You already have an open pick on this event");
+  }
+
   const { rows: lineRows } = await db.query<{
     outrights: { name: string; odds: number }[] | null;
   }>("select outrights from lines where id = $1", [lineId]);
@@ -327,6 +396,10 @@ export async function placeOutrightPickAction(formData: FormData) {
       await debitFreePlay(client, user.id, wager);
     } else {
       await debitForWager(client, user.id, wager);
+    }
+
+    if (await hasOpenPickOnGame(client, user.id, gameId)) {
+      throw new Error("You already have an open pick on this event");
     }
 
     const { rows: pickRows } = await client.query<{ id: string }>(

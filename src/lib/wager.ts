@@ -1,6 +1,50 @@
 import "server-only";
-import type { PoolClient } from "pg";
+import type { Pool, PoolClient } from "pg";
 import { formatMoney } from "./format";
+
+// Minimum gap between a user's bet placements — cheap guardrail against a
+// script hammering placePickAction/placeParlayAction, which is worse than
+// usual here since a live bet also holds a 10-second server-side wait.
+const MIN_SECONDS_BETWEEN_BETS = 2;
+
+export async function enforceBetRateLimit(
+  db: Pool | PoolClient,
+  userId: string,
+): Promise<void> {
+  const { rows } = await db.query<{ last_at: Date | null }>(
+    `select max(created_at) as last_at from (
+       select created_at from picks where user_id = $1
+       union all
+       select created_at from parlays where user_id = $1
+     ) recent`,
+    [userId],
+  );
+  const lastAt = rows[0]?.last_at;
+  if (lastAt && Date.now() - new Date(lastAt).getTime() < MIN_SECONDS_BETWEEN_BETS * 1000) {
+    throw new Error("You're placing bets too quickly — wait a couple seconds and try again");
+  }
+}
+
+// True if the user already has a pending straight pick or parlay leg on
+// this game — blocks stacking correlated bets (e.g. spread + moneyline on
+// the same side) across separate tickets, not just within one parlay.
+export async function hasOpenPickOnGame(
+  db: Pool | PoolClient,
+  userId: string,
+  gameId: string,
+): Promise<boolean> {
+  const { rows } = await db.query<{ exists: boolean }>(
+    `select exists(
+       select 1 from picks where user_id = $1 and game_id = $2 and status = 'pending'
+       union all
+       select 1 from parlay_legs pl
+       join parlays p on p.id = pl.parlay_id
+       where p.user_id = $1 and pl.game_id = $2 and pl.status = 'pending'
+     ) as exists`,
+    [userId, gameId],
+  );
+  return rows[0]?.exists ?? false;
+}
 
 // Debits a wager from a user's balance, enforcing their per-user min_balance
 // floor instead of a hard floor of $0 — balances can go negative from a

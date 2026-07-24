@@ -317,6 +317,36 @@ export async function syncLiveOdds(db: Pool): Promise<SyncSummary[]> {
   return summaries;
 }
 
+// Called synchronously at live-bet placement time (not just from cron) —
+// forces an authoritative, on-demand score check for this one game's sport
+// before we decide whether the bet can proceed. Closes the gap where a
+// game has actually ended (or a big play just happened) but the periodic
+// poll hasn't run yet: this makes that check happen right now instead of
+// trusting a DB row that could be stale by however long it's been since
+// the last cron tick. No-op (and no API cost) for anything not currently
+// 'live' in our DB, so prematch bets pay nothing extra.
+export async function refreshLiveGameIfNeeded(db: Pool, gameId: string): Promise<void> {
+  const { rows } = await db.query<{ status: string; sport: string }>(
+    "select status, sport from games where id = $1",
+    [gameId],
+  );
+  const game = rows[0];
+  if (!game || game.status !== "live") return;
+
+  const sportKey = TRACKED_SPORTS.find((s) => s.label === game.sport)?.key;
+  if (!sportKey) return; // golf/outrights never go live, nothing to refresh
+
+  try {
+    await syncScoresForSport(db, sportKey);
+  } catch {
+    // Fail closed — better to ask the bettor to retry than to accept a
+    // live bet we couldn't actually verify against a fresh score.
+    throw new Error(
+      "Couldn't confirm this game's current status — try again in a moment",
+    );
+  }
+}
+
 export async function syncAllTrackedSports(db: Pool): Promise<SyncSummary[]> {
   const summaries: SyncSummary[] = [];
 
