@@ -263,14 +263,13 @@ matters.
 
 ## Look & feel
 
-The login screen's backdrop is three real sports action photos (football
-matchup, basketball dunk, golf swing) shown as full-height panels behind
-the login card, with a gradient overlay + backdrop blur so the form stays
-readable. They live in `public/hero/` and are served through
-`next/image`. All three are from Pexels under its free license — free for
-commercial use, no attribution required. If you ever swap them, use
-similarly-licensed images (Pexels/Unsplash), never watermarked previews
-from paid stock sites.
+The login screen's backdrop is a full-bleed SVG banner
+([`src/app/components/SportsHeroBanner.tsx`](src/app/components/SportsHeroBanner.tsx)):
+three white Olympic-pictogram-style athlete silhouettes (football runner,
+basketball dunk, golf follow-through) over the app's navy/teal gradient
+with stadium light beams and a scoreboard dot grid. The figures are thick
+round-capped SVG strokes — generic, no photos, nothing to license, and it
+weighs nothing compared to images.
 
 ## Bet integrity (line movement, market locks, and the live-bet hold)
 
