@@ -31,6 +31,9 @@ export default async function NavBar() {
             <Link href="/picks" className="hover:text-white">
               My Picks
             </Link>
+            <Link href="/casino" className="hover:text-white">
+              Casino
+            </Link>
           </>
         )}
         {user.is_admin && (

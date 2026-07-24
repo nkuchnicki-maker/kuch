@@ -16,6 +16,8 @@ export async function enforceBetRateLimit(
        select created_at from picks where user_id = $1
        union all
        select created_at from parlays where user_id = $1
+       union all
+       select created_at from casino_rounds where user_id = $1
      ) recent`,
     [userId],
   );

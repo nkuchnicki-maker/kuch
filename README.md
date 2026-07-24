@@ -360,6 +360,63 @@ on unverified data — fail closed, not open.
   ([`src/lib/apiAuth.ts`](src/lib/apiAuth.ts)) instead of `!==`, removing a
   (low-value, but free-to-fix) timing side channel.
 
+## Casino (blackjack, roulette, baccarat) — and the house edge
+
+A separate tab (blocked for agent-only accounts, same as Lines/Live
+Sports/My Picks) with three instantly-resolved games — no pending state,
+each round debits the wager and settles in one action. Logic lives in
+[`src/lib/casino/`](src/lib/casino/); server actions in
+[`src/app/casino/actions.ts`](src/app/casino/actions.ts).
+
+**This is deliberately rigged.** Every round rolls a `CASINO_HOUSE_EDGE`
+chance (currently 0.35 — see below for why that number and not 0.7) of
+forcing the round to NOT be a player win, resolved through each game's
+real rules rather than a hand-picked fake result:
+
+- **Roulette**: on a forced round, the wheel is redrawn until it lands on
+  a number that doesn't match the bet (standard payouts: 35:1 straight
+  number, 1:1 on red/black/even/odd/high/low).
+- **Baccarat**: has zero player decisions in real life, so a forced round
+  just replays full random hands under the real player/banker draw-rule
+  table until one doesn't match the bet — the hand that ships is always a
+  genuine one, just resampled. (Standard rules: Banker bet pays 1.95:1
+  after 5% commission, Player 1:1, Tie 8:1, and a Tie voids/pushes a
+  Player or Banker bet rather than losing it.)
+- **Blackjack** is the one with real player decisions (hit/stand), so it
+  can't be resampled after the fact — instead, on a forced round the
+  dealer's initial deal is completely fair (naturals are never
+  suppressed), but if the player doesn't bust, the dealer keeps hitting
+  past the normal "stand at 17" rule specifically to catch up to and beat
+  the player's total (still fair/random cards otherwise, and this never
+  makes the dealer bust more than the real rules already would). Hand
+  state (both hands, the wager, and the forced-round flag) travels between
+  deal/hit/stand as an AES-256-GCM encrypted token
+  ([`src/lib/casino/handToken.ts`](src/lib/casino/handToken.ts)) — signing
+  alone wouldn't be enough, since a signed-but-plaintext token would let
+  anyone read the forced-round flag straight out of devtools.
+
+**Why `CASINO_HOUSE_EDGE = 0.35` and not `0.7`.** The "force a non-win"
+roll isn't the same number as the final observed house win rate, because
+each game still applies real odds in the non-forced branch, and real
+casino games already favor the house even before rigging anything — the
+two effects compound. Simulating both ways: setting the constant literally
+to 0.7 overshoots to roughly an **85-90%** house win rate; 0.35 was reverse
+-engineered by simulation to land the actual observed rate at the intended
+**~70% house / ~30% player** for typical bets (outside roulette bets,
+banker in baccarat, ordinary blackjack play). Long-shot bets (a straight
+roulette number, a baccarat tie) end up even harder than that — same
+mechanism compounding on already-worse real odds, which is the *correct*
+direction (a riskier bet should still pay out less often than a safer one,
+even in a rigged casino; forcing every bet type to the same flat win rate
+regardless of real odds would make the highest-payout longshot bets the
+obviously correct move, not the trap they're supposed to be).
+
+None of this is disclosed in the UI — the whole point was a hidden house
+edge — but it's fully documented here and in code comments for whoever's
+maintaining it. To change the target, adjust `CASINO_HOUSE_EDGE` in
+[`src/lib/casino/rig.ts`](src/lib/casino/rig.ts) and re-verify with a
+simulation rather than assuming the constant equals the outcome.
+
 ## Weekly reset
 
 Every user's `coin_balance` snaps back to their `starting_balance` (set when

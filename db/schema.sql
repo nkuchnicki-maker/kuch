@@ -32,7 +32,7 @@ create table if not exists coin_transactions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references users(id) on delete cascade,
   amount numeric not null, -- positive = credit, negative = debit
-  reason text not null, -- 'admin_grant', 'pick_wager', 'pick_payout', 'pick_refund', 'weekly_reset'
+  reason text not null, -- 'admin_grant', 'pick_wager', 'pick_payout', 'pick_refund', 'weekly_reset', 'casino_wager', 'casino_payout'
   related_pick_id uuid,
   related_parlay_id uuid,
   created_by uuid references users(id), -- admin who made the change, null for system/settlement
@@ -141,6 +141,32 @@ alter table coin_transactions
 alter table coin_transactions
   add constraint coin_transactions_parlay_fk
   foreign key (related_parlay_id) references parlays(id) on delete set null;
+
+-- ============================================================
+-- casino_rounds: an instantly-resolved casino game (blackjack, roulette,
+-- baccarat) — no pending state, resolved and settled in one action.
+-- ============================================================
+create table if not exists casino_rounds (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  game text not null check (game in ('blackjack', 'roulette', 'baccarat')),
+  wager numeric not null check (wager > 0),
+  payout numeric not null default 0, -- total returned to player (0 on a loss)
+  outcome text not null check (outcome in ('win', 'loss', 'push')),
+  is_free_play boolean not null default false,
+  detail jsonb not null default '{}'::jsonb, -- game-specific summary for history display
+  created_at timestamptz not null default now()
+);
+
+create index if not exists casino_rounds_user_id_idx on casino_rounds (user_id);
+
+alter table coin_transactions
+  drop constraint if exists coin_transactions_casino_round_fk;
+alter table coin_transactions
+  add column if not exists related_casino_round_id uuid;
+alter table coin_transactions
+  add constraint coin_transactions_casino_round_fk
+  foreign key (related_casino_round_id) references casino_rounds(id) on delete set null;
 
 -- ============================================================
 -- Helpful view: standings since each user's last weekly reset (see
