@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { placeBaccaratBetAction } from "./actions";
 import { formatMoney } from "@/lib/format";
 import type { BaccaratBetType } from "@/lib/casino/baccarat";
@@ -11,7 +11,7 @@ function CardView({ card }: { card: Card }) {
   const isRed = card.suit === "♥" || card.suit === "♦";
   return (
     <span
-      className={`inline-flex h-12 w-9 items-center justify-center rounded border border-slate-600 bg-white text-sm font-bold ${
+      className={`card-deal inline-flex h-12 w-9 items-center justify-center rounded border border-slate-600 bg-white text-sm font-bold ${
         isRed ? "text-red-600" : "text-slate-900"
       }`}
     >
@@ -36,12 +36,88 @@ const BET_LABELS: { value: BetType; label: string; payout: string }[] = [
   { value: "tie", label: "Tie", payout: "9x" },
 ];
 
+const DEAL_STAGGER_MS = 260;
+
+// Real baccarat deals player/banker alternately (up to 2 cards each), then
+// any third cards — used purely to pace the reveal animation, not to
+// re-derive the outcome (that's already decided server-side).
+function buildDealOrder(playerCount: number, bankerCount: number): ("player" | "banker")[] {
+  const order: ("player" | "banker")[] = ["player", "banker", "player", "banker"];
+  if (playerCount > 2) order.push("player");
+  if (bankerCount > 2) order.push("banker");
+  return order;
+}
+
+// Mounted fresh (via a `key` on the round number) for every new round, so
+// its reveal-step state always starts at 0 without needing to be reset
+// from an effect.
+function DealtHand({ result }: { result: RoundResult }) {
+  const [revealStep, setRevealStep] = useState(0);
+  const dealOrder = buildDealOrder(result.playerCards.length, result.bankerCards.length);
+
+  useEffect(() => {
+    let step = 0;
+    const id = setInterval(() => {
+      step++;
+      setRevealStep(step);
+      if (step >= dealOrder.length) clearInterval(id);
+    }, DEAL_STAGGER_MS);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- dealOrder is derived from result, which only changes when this component remounts
+  }, []);
+
+  const dealt = dealOrder.slice(0, revealStep);
+  const revealedPlayerCount = dealt.filter((s) => s === "player").length;
+  const revealedBankerCount = dealt.filter((s) => s === "banker").length;
+  const fullyDealt = revealStep >= dealOrder.length;
+
+  return (
+    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+      <div>
+        <div className="mb-1 text-xs uppercase text-slate-500">Player</div>
+        <div className="flex gap-1">
+          {result.playerCards.slice(0, revealedPlayerCount).map((c, i) => (
+            <CardView key={i} card={c} />
+          ))}
+        </div>
+      </div>
+      <div>
+        <div className="mb-1 text-xs uppercase text-slate-500">Banker</div>
+        <div className="flex gap-1">
+          {result.bankerCards.slice(0, revealedBankerCount).map((c, i) => (
+            <CardView key={i} card={c} />
+          ))}
+        </div>
+      </div>
+      {fullyDealt && (
+        <p
+          className={`card-deal font-semibold sm:col-span-2 ${
+            result.outcome === "win"
+              ? "text-emerald-400"
+              : result.outcome === "push"
+                ? "text-yellow-400"
+                : "text-red-400"
+          }`}
+        >
+          {result.result} wins —{" "}
+          {result.outcome === "win"
+            ? `you won, paid ${result.payoutMultiplier}x`
+            : result.outcome === "push"
+              ? "push, stake back"
+              : "you lost"}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function BaccaratGame({ freePlayBalance }: { freePlayBalance: number }) {
   const [betType, setBetType] = useState<BetType>("banker");
   const [wager, setWager] = useState("");
   const [useFreePlay, setUseFreePlay] = useState(false);
   const [dealing, setDealing] = useState(false);
   const [result, setResult] = useState<RoundResult | null>(null);
+  const [roundId, setRoundId] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   async function handleDeal() {
@@ -53,6 +129,7 @@ export default function BaccaratGame({ freePlayBalance }: { freePlayBalance: num
     try {
       const r = await placeBaccaratBetAction(betType, w, useFreePlay);
       setResult(r);
+      setRoundId((id) => id + 1);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -114,42 +191,7 @@ export default function BaccaratGame({ freePlayBalance }: { freePlayBalance: num
 
       {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
 
-      {result && (
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <div>
-            <div className="mb-1 text-xs uppercase text-slate-500">Player</div>
-            <div className="flex gap-1">
-              {result.playerCards.map((c, i) => (
-                <CardView key={i} card={c} />
-              ))}
-            </div>
-          </div>
-          <div>
-            <div className="mb-1 text-xs uppercase text-slate-500">Banker</div>
-            <div className="flex gap-1">
-              {result.bankerCards.map((c, i) => (
-                <CardView key={i} card={c} />
-              ))}
-            </div>
-          </div>
-          <p
-            className={`font-semibold sm:col-span-2 ${
-              result.outcome === "win"
-                ? "text-emerald-400"
-                : result.outcome === "push"
-                  ? "text-yellow-400"
-                  : "text-red-400"
-            }`}
-          >
-            {result.result} wins —{" "}
-            {result.outcome === "win"
-              ? `you won, paid ${result.payoutMultiplier}x`
-              : result.outcome === "push"
-                ? "push, stake back"
-                : "you lost"}
-          </p>
-        </div>
-      )}
+      {result && <DealtHand key={roundId} result={result} />}
     </div>
   );
 }

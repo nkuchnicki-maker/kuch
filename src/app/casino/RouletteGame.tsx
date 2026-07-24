@@ -24,6 +24,18 @@ function numberColor(n: number): string {
 
 type SpinResult = { winningNumber: number; outcome: "win" | "loss"; payoutMultiplier: number };
 
+const MIN_SPIN_MS = 1600;
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Conic-gradient wheel face — 12 alternating red/near-black wedges. Purely
+// decorative (it isn't labeled with numbers or aligned to a real physical
+// wheel order), so it doesn't need to "land" precisely — the actual result
+// is revealed separately, right after the spin animation finishes.
+const WHEEL_GRADIENT = `repeating-conic-gradient(#dc2626 0deg 30deg, #0f172a 30deg 60deg)`;
+
 export default function RouletteGame({ freePlayBalance }: { freePlayBalance: number }) {
   const [betType, setBetType] = useState<RouletteBetType>("red");
   const [betNumber, setBetNumber] = useState(0);
@@ -40,12 +52,15 @@ export default function RouletteGame({ freePlayBalance }: { freePlayBalance: num
     setError(null);
     setResult(null);
     try {
-      const r = await placeRouletteBetAction(
-        betType,
-        betType === "number" ? betNumber : undefined,
-        w,
-        useFreePlay,
-      );
+      const [r] = await Promise.all([
+        placeRouletteBetAction(
+          betType,
+          betType === "number" ? betNumber : undefined,
+          w,
+          useFreePlay,
+        ),
+        wait(MIN_SPIN_MS),
+      ]);
       setResult(r);
     } catch (err) {
       setError((err as Error).message);
@@ -132,8 +147,18 @@ export default function RouletteGame({ freePlayBalance }: { freePlayBalance: num
 
       {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
 
+      {spinning && (
+        <div className="relative mx-auto mt-4 h-24 w-24">
+          <div
+            className="h-24 w-24 animate-spin rounded-full border-4 border-slate-700"
+            style={{ background: WHEEL_GRADIENT, animationDuration: "0.7s" }}
+          />
+          <div className="absolute -top-1.5 left-1/2 h-0 w-0 -translate-x-1/2 border-x-8 border-t-8 border-x-transparent border-t-amber-400" />
+        </div>
+      )}
+
       {result && (
-        <div className="mt-4 flex items-center gap-3 rounded-lg border border-slate-700 bg-slate-950 p-4">
+        <div className="card-deal mt-4 flex items-center gap-3 rounded-lg border border-slate-700 bg-slate-950 p-4">
           <div
             className={`flex h-10 w-10 items-center justify-center rounded-full font-bold text-white ${numberColor(result.winningNumber)}`}
           >

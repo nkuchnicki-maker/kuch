@@ -24,3 +24,24 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Casino card-deal animation (Baccarat) — each card flips/slides into
+   place as it's dealt, rather than the whole hand appearing at once. */
+@keyframes card-deal {
+  0% {
+    opacity: 0;
+    transform: translateY(-14px) rotateY(90deg);
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) rotateY(0deg);
+  }
+}
+
+.card-deal {
+  animation: card-deal 0.35s ease-out;
+  transform-style: preserve-3d;
+}
