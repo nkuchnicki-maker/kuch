@@ -9,57 +9,65 @@ export default async function NavBar() {
   if (!user) return null;
 
   const agentOnly = isAgentOnly(user);
+  const linkClass =
+    "flex items-center gap-1.5 rounded-md px-2 py-1 transition hover:bg-slate-800/80 hover:text-white";
 
   return (
-    <nav className="flex items-center justify-between border-b border-slate-800 bg-slate-950 px-6 py-3 text-sm text-slate-300">
-      <div className="flex items-center gap-6">
-        <Link href="/leaderboard" className="flex items-center gap-2 font-bold text-emerald-400">
-          <Logo size={22} />
-          Bettor Edge
-        </Link>
-        <Link href="/leaderboard" className="hover:text-white">
-          Leaderboard
-        </Link>
-        {!agentOnly && (
-          <>
-            <Link href="/lines" className="hover:text-white">
-              Lines
-            </Link>
-            <Link href="/live-sports" className="hover:text-white">
-              Live Sports
-            </Link>
-            <Link href="/picks" className="hover:text-white">
-              My Picks
-            </Link>
-            <Link href="/casino" className="hover:text-white">
-              Casino
-            </Link>
-          </>
-        )}
-        {user.is_admin && (
-          <Link href="/admin" className="hover:text-white">
-            Admin
+    <nav className="relative border-b border-slate-800/80 bg-slate-950/95 px-6 py-3 text-sm text-slate-300 backdrop-blur-sm">
+      <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center gap-1">
+          <Link
+            href="/leaderboard"
+            className="mr-4 flex items-center gap-2 text-base font-bold text-emerald-400"
+          >
+            <Logo size={22} />
+            Bettor Edge
           </Link>
-        )}
-        {(user.is_admin || user.is_agent) && (
-          <Link href="/history" className="hover:text-white">
-            History
+          <Link href="/leaderboard" className={linkClass}>
+            🏆 Leaderboard
           </Link>
-        )}
-        {(user.is_admin || user.is_agent) && (
-          <Link href="/users" className="hover:text-white">
-            Users
-          </Link>
-        )}
+          {!agentOnly && (
+            <>
+              <Link href="/lines" className={linkClass}>
+                📈 Lines
+              </Link>
+              <Link href="/live-sports" className={linkClass}>
+                🔴 Live Sports
+              </Link>
+              <Link href="/picks" className={linkClass}>
+                📋 My Picks
+              </Link>
+              <Link href="/casino" className={linkClass}>
+                🎰 Casino
+              </Link>
+            </>
+          )}
+          {user.is_admin && (
+            <Link href="/admin" className={linkClass}>
+              ⚙️ Admin
+            </Link>
+          )}
+          {(user.is_admin || user.is_agent) && (
+            <Link href="/history" className={linkClass}>
+              📜 History
+            </Link>
+          )}
+          {(user.is_admin || user.is_agent) && (
+            <Link href="/users" className={linkClass}>
+              👥 Users
+            </Link>
+          )}
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="text-slate-500">{user.display_name}</span>
+          <form action={signOutAction}>
+            <button className="rounded-lg bg-slate-800 px-3 py-1 transition hover:bg-slate-700">
+              Sign out
+            </button>
+          </form>
+        </div>
       </div>
-      <div className="flex items-center gap-4">
-        <span className="text-slate-500">{user.display_name}</span>
-        <form action={signOutAction}>
-          <button className="rounded-lg bg-slate-800 px-3 py-1 hover:bg-slate-700">
-            Sign out
-          </button>
-        </form>
-      </div>
+      <div className="absolute inset-x-0 -bottom-px h-px bg-gradient-to-r from-transparent via-emerald-500/50 to-transparent" />
     </nav>
   );
 }

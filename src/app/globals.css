@@ -45,3 +45,14 @@ body {
   animation: card-deal 0.35s ease-out;
   transform-style: preserve-3d;
 }
+
+/* Shared page background — a subtle navy-to-teal gradient with a faint
+   emerald glow, used in place of a flat bg-slate-950 on every page's root
+   wrapper, so the whole site reads a little richer than one flat tone. */
+.app-bg {
+  background-color: #020617;
+  background-image:
+    radial-gradient(ellipse 900px 500px at 50% -10%, rgba(16, 185, 129, 0.1), transparent),
+    linear-gradient(180deg, #020617 0%, #0a1428 45%, #051f1c 100%);
+  background-attachment: fixed;
+}

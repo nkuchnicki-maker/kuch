@@ -101,14 +101,16 @@ export default async function LeaderboardPage() {
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
     .slice(0, 20);
 
+  const medal = (i: number) => (i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : null);
+
   return (
-    <div className="min-h-screen bg-slate-950 p-6 text-slate-100">
+    <div className="app-bg min-h-screen p-6 text-slate-100">
       <h1 className="mb-8 text-2xl font-bold text-emerald-400">
-        Bettor Edge — Leaderboard
+        🏆 Bettor Edge — Leaderboard
       </h1>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <section className="rounded-xl border border-slate-800 bg-slate-900 p-6">
+        <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-black/20">
           <h2 className="mb-4 text-lg font-semibold">This week</h2>
           <table className="w-full text-left text-sm">
             <thead>
@@ -120,9 +122,14 @@ export default async function LeaderboardPage() {
             </thead>
             <tbody>
               {standings.map((s, i) => (
-                <tr key={s.user_id} className="border-b border-slate-800/50">
+                <tr
+                  key={s.user_id}
+                  className={`border-b border-slate-800/50 ${i === 0 ? "bg-amber-500/5" : ""}`}
+                >
                   <td className="py-2">
-                    <span className="mr-2 text-slate-500">#{i + 1}</span>
+                    <span className="mr-2 text-slate-500">
+                      {medal(i) ?? `#${i + 1}`}
+                    </span>
                     {s.display_name}
                   </td>
                   <td
@@ -144,13 +151,13 @@ export default async function LeaderboardPage() {
           </table>
         </section>
 
-        <section className="rounded-xl border border-slate-800 bg-slate-900 p-6">
-          <h2 className="mb-4 text-lg font-semibold">Recent picks</h2>
+        <section className="rounded-xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-black/20">
+          <h2 className="mb-4 text-lg font-semibold">📋 Recent picks</h2>
           <ul className="space-y-3 text-sm">
             {feed.map((item) => (
               <li
                 key={`${item.kind}-${item.id}`}
-                className="rounded-lg border border-slate-800 bg-slate-950 p-3"
+                className="rounded-lg border border-slate-800 bg-slate-950/80 p-3 transition hover:border-slate-700"
               >
                 <div className="flex justify-between">
                   <span className="font-semibold">{item.display_name}</span>

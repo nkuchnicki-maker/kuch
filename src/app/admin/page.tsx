@@ -16,6 +16,7 @@ import DeleteUserButton from "./DeleteUserButton";
 import VoidGameButton from "./VoidGameButton";
 import { formatMoney } from "@/lib/format";
 import { AGENTS } from "@/lib/agents";
+import { sportIcon } from "@/lib/sportIcons";
 
 type UserRow = {
   id: string;
@@ -73,7 +74,7 @@ export default async function AdminPage() {
   ]);
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6 text-slate-100">
+    <div className="app-bg min-h-screen p-6 text-slate-100">
       <h1 className="mb-8 text-2xl font-bold text-emerald-400">
         Bettor Edge — Admin
       </h1>
@@ -281,7 +282,9 @@ export default async function AdminPage() {
                 <tr key={g.id} className="border-b border-slate-800/50">
                   <td className="py-2">
                     {isOutright ? g.event_name : `${g.away_team} @ ${g.home_team}`}
-                    <div className="text-xs text-slate-500">{g.sport}</div>
+                    <div className="text-xs text-slate-500">
+                      {sportIcon(g.sport)} {g.sport}
+                    </div>
                   </td>
                   <td className="text-xs text-slate-400">
                     {isOutright ? (

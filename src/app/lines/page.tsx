@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getCurrentUser, isAgentOnly } from "@/lib/auth";
 import { STANDARD_JUICE, formatAmericanOdds } from "@/lib/odds";
 import { formatMoney } from "@/lib/format";
+import { sportIcon } from "@/lib/sportIcons";
 import SportFilter from "./SportFilter";
 import PickForm from "./PickForm";
 import OutrightPickForm from "./OutrightPickForm";
@@ -54,7 +55,7 @@ export default async function LinesPage({
     : allGames;
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6 text-slate-100">
+    <div className="app-bg min-h-screen p-6 text-slate-100">
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-emerald-400">Bettor Edge</h1>
         <div className="flex items-center gap-4">
@@ -85,12 +86,12 @@ export default async function LinesPage({
               return (
                 <div
                   key={g.id}
-                  className="rounded-xl border border-slate-800 bg-slate-900 p-5"
+                  className="rounded-xl border border-slate-800 bg-slate-900/80 p-5 shadow-lg shadow-black/20 transition hover:border-slate-700"
                 >
                   <div className="mb-3 flex items-baseline justify-between">
                     <div>
-                      <span className="text-xs uppercase text-slate-500">
-                        {g.sport}
+                      <span className="text-xs uppercase tracking-wide text-slate-500">
+                        {sportIcon(g.sport)} {g.sport}
                       </span>
                       <h2 className="text-lg font-semibold">{g.event_name}</h2>
                     </div>
@@ -114,12 +115,12 @@ export default async function LinesPage({
             return (
               <div
                 key={g.id}
-                className="rounded-xl border border-slate-800 bg-slate-900 p-5"
+                className="rounded-xl border border-slate-800 bg-slate-900/80 p-5 shadow-lg shadow-black/20 transition hover:border-slate-700"
               >
                 <div className="mb-3 flex items-baseline justify-between">
                   <div>
-                    <span className="text-xs uppercase text-slate-500">
-                      {g.sport}
+                    <span className="text-xs uppercase tracking-wide text-slate-500">
+                      {sportIcon(g.sport)} {g.sport}
                     </span>
                     <h2 className="text-lg font-semibold">
                       {g.away_team} @ {g.home_team}

@@ -26,7 +26,7 @@ export default async function CasinoPage() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6 text-slate-100">
+    <div className="app-bg min-h-screen p-6 text-slate-100">
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-emerald-400">Bettor Edge — Casino</h1>
         <div className="text-sm text-slate-300">

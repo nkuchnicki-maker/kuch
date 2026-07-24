@@ -44,7 +44,7 @@ export default async function UsersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6 text-slate-100">
+    <div className="app-bg min-h-screen p-6 text-slate-100">
       <h1 className="mb-2 text-2xl font-bold text-emerald-400">Users</h1>
       <p className="mb-8 max-w-2xl text-sm text-slate-400">
         Everyone&apos;s balance from last week and current free play. Free

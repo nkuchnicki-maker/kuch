@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { sportIcon } from "@/lib/sportIcons";
 
 export default function SportFilter({
   sports,
@@ -22,10 +23,10 @@ export default function SportFilter({
       }}
       className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100"
     >
-      <option value="">All sports</option>
+      <option value="">🏆 All sports</option>
       {sports.map((s) => (
         <option key={s} value={s}>
-          {s}
+          {sportIcon(s)} {s}
         </option>
       ))}
     </select>

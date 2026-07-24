@@ -5,6 +5,7 @@ import { STANDARD_JUICE, formatAmericanOdds } from "@/lib/odds";
 import { formatMoney } from "@/lib/format";
 import { isCurrentlyLocked } from "@/lib/marketLock";
 import { fetchEspnGameStates, espnGameKey, type EspnGameState } from "@/lib/espnScores";
+import { sportIcon } from "@/lib/sportIcons";
 import SportFilter from "../lines/SportFilter";
 import PickForm from "../lines/PickForm";
 import LiveRefresher from "./LiveRefresher";
@@ -64,7 +65,7 @@ export default async function LiveSportsPage({
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6 text-slate-100">
+    <div className="app-bg min-h-screen p-6 text-slate-100">
       <LiveRefresher intervalMs={20000} />
       <div className="mb-8 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-emerald-400">
@@ -101,16 +102,16 @@ export default async function LiveSportsPage({
             return (
               <div
                 key={g.id}
-                className="rounded-xl border border-slate-800 bg-slate-900 p-5"
+                className="rounded-xl border border-red-900/40 bg-slate-900/80 p-5 shadow-lg shadow-red-950/20 transition hover:border-red-800/60"
               >
                 <div className="mb-3 flex items-baseline justify-between">
                   <div>
-                    <span className="text-xs uppercase text-slate-500">
-                      {g.sport}
+                    <span className="text-xs uppercase tracking-wide text-slate-500">
+                      {sportIcon(g.sport)} {g.sport}
                     </span>
                     <h2 className="text-lg font-semibold">
                       {g.away_team} @ {g.home_team}
-                      <span className="ml-2 rounded bg-red-500/90 px-1.5 py-0.5 align-middle text-xs font-bold uppercase text-white">
+                      <span className="ml-2 animate-pulse rounded bg-red-500/90 px-1.5 py-0.5 align-middle text-xs font-bold uppercase text-white">
                         Live
                       </span>
                       {locked && (
