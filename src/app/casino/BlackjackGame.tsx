@@ -149,6 +149,17 @@ export default function BlackjackGame({ freePlayBalance }: { freePlayBalance: nu
             </button>
           </div>
           <p className="mt-1 text-xs text-slate-500">${MAX_CASINO_WAGER} max per hand</p>
+          {Number(wager) > 0 && (
+            <p className="mt-1 text-xs text-slate-400">
+              {formatMoney(wager)} to win{" "}
+              <span className="font-semibold text-emerald-400">
+                {formatMoney(Number(wager) * 2)}
+              </span>{" "}
+              <span className="text-slate-500">
+                ({formatMoney(Number(wager) * 2.5)} on a natural blackjack)
+              </span>
+            </p>
+          )}
           {freePlayBalance > 0 && (
             <label className="mt-2 flex items-center gap-1.5 text-xs text-amber-400">
               <input

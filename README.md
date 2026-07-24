@@ -261,6 +261,32 @@ their own — no manual reload needed. The Lines (prematch) page doesn't
 auto-refresh, since nothing on it changes on a timescale where that
 matters.
 
+### "To win" previews
+
+Every place you can bet shows a live "to win" figure — computed
+client-side from the wager typed so far and that option's real odds, no
+round trip needed:
+
+- **Straight picks** (`PickForm`): the wager input sits above the pick
+  options, and each option shows its own "to win $X" next to it as you
+  type — you don't have to select a side first to see what either side
+  would pay (that was the original bug: it used to require picking a
+  side before showing anything).
+- **Outright picks** (`OutrightPickForm`) and the **parlay bet slip**
+  (`BetSlip`) show the same, plus the bet slip shows the parlay's
+  combined odds in American format (`decimalToAmerican` in
+  [`src/lib/odds.ts`](src/lib/odds.ts)) as legs are added, not just a
+  raw decimal multiplier.
+- **Casino** (roulette, baccarat): "to win" uses that bet type's fixed
+  multiplier. Blackjack shows the standard 2x payout plus a note that a
+  natural blackjack pays 2.5x, since the actual outcome isn't known until
+  the cards are dealt.
+
+"To win" everywhere means **total payout** (stake included), matching
+the `potential_payout` figure already shown in pick history/leaderboard
+feeds — not "profit only" — so the wording is consistent across the
+whole app.
+
 ## Look & feel
 
 The login screen's backdrop is a full-bleed SVG banner

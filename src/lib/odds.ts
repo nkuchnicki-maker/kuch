@@ -19,3 +19,10 @@ export function americanToDecimal(odds: number): number {
 export function formatAmericanOdds(odds: number): string {
   return odds > 0 ? `+${odds}` : `${odds}`;
 }
+
+// Inverse of americanToDecimal — used to show a parlay's combined decimal
+// odds (product of every leg) back in the American format bettors expect,
+// e.g. combined decimal 3.5 -> "+250".
+export function decimalToAmerican(decimal: number): number {
+  return decimal >= 2 ? Math.round((decimal - 1) * 100) : Math.round(-100 / (decimal - 1));
+}

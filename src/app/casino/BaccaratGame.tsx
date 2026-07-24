@@ -30,10 +30,10 @@ type RoundResult = {
   payoutMultiplier: number;
 };
 
-const BET_LABELS: { value: BetType; label: string; payout: string }[] = [
-  { value: "player", label: "Player", payout: "2x" },
-  { value: "banker", label: "Banker", payout: "1.95x" },
-  { value: "tie", label: "Tie", payout: "9x" },
+const BET_LABELS: { value: BetType; label: string; payout: string; multiplier: number }[] = [
+  { value: "player", label: "Player", payout: "2x", multiplier: 2 },
+  { value: "banker", label: "Banker", payout: "1.95x", multiplier: 1.95 },
+  { value: "tie", label: "Tie", payout: "9x", multiplier: 9 },
 ];
 
 const DEAL_STAGGER_MS = 260;
@@ -120,6 +120,10 @@ export default function BaccaratGame({ freePlayBalance }: { freePlayBalance: num
   const [roundId, setRoundId] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
+  const wagerNum = Number(wager);
+  const multiplier = BET_LABELS.find((b) => b.value === betType)?.multiplier ?? 2;
+  const toWinTotal = wagerNum > 0 ? wagerNum * multiplier : null;
+
   async function handleDeal() {
     const w = Number(wager);
     if (!Number.isFinite(w) || w <= 0) return;
@@ -176,6 +180,12 @@ export default function BaccaratGame({ freePlayBalance }: { freePlayBalance: num
         </button>
       </div>
       <p className="mt-1 text-xs text-slate-500">${MAX_CASINO_WAGER} max per hand</p>
+      {toWinTotal != null && (
+        <p className="mt-1 text-xs text-slate-400">
+          {formatMoney(wagerNum)} to win{" "}
+          <span className="font-semibold text-emerald-400">{formatMoney(toWinTotal)}</span>
+        </p>
+      )}
 
       {freePlayBalance > 0 && (
         <label className="mt-2 flex items-center gap-1.5 text-xs text-amber-400">

@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useBetSlip } from "./BetSlipContext";
 import { placeParlayAction } from "./actions";
-import { americanToDecimal } from "@/lib/odds";
+import { americanToDecimal, decimalToAmerican, formatAmericanOdds } from "@/lib/odds";
 import { formatMoney } from "@/lib/format";
 import BetStatusModal, { type BetPhase } from "./BetStatusModal";
 
@@ -104,9 +104,14 @@ export default function BetSlip({ freePlayBalance = 0 }: { freePlayBalance?: num
             </p>
           )}
 
-          <div className="mb-2 text-xs text-slate-400">
-            Combined odds: {combinedDecimal.toFixed(2)}x
-          </div>
+          {legs.length >= 2 && (
+            <div className="mb-2 text-sm font-semibold text-emerald-400">
+              Parlay odds: {formatAmericanOdds(decimalToAmerican(combinedDecimal))}{" "}
+              <span className="font-normal text-slate-500">
+                ({combinedDecimal.toFixed(2)}x)
+              </span>
+            </div>
+          )}
 
           <input
             type="number"
@@ -119,7 +124,10 @@ export default function BetSlip({ freePlayBalance = 0 }: { freePlayBalance?: num
 
           {wagerNum > 0 && (
             <div className="mb-2 text-xs text-slate-400">
-              To win: {formatMoney(potentialPayout)}
+              {formatMoney(wagerNum)} to win{" "}
+              <span className="font-semibold text-emerald-400">
+                {formatMoney(potentialPayout)}
+              </span>
             </div>
           )}
 

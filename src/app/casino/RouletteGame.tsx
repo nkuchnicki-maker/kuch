@@ -4,6 +4,14 @@ import { useState } from "react";
 import { placeRouletteBetAction } from "./actions";
 import { formatMoney } from "@/lib/format";
 import type { RouletteBetType } from "@/lib/casino/roulette";
+
+// Mirrors rouletteBetMultiplier in the server-only lib — duplicated here
+// (rather than imported) since that module pulls in "server-only" and
+// can't be bundled into a client component. Straight number pays 35:1,
+// everything else here pays even money.
+function rouletteBetMultiplier(betType: RouletteBetType): number {
+  return betType === "number" ? 36 : 2;
+}
 import { MAX_CASINO_WAGER } from "@/lib/casino/limits";
 
 const OUTSIDE_BETS: { value: RouletteBetType; label: string }[] = [
@@ -44,6 +52,10 @@ export default function RouletteGame({ freePlayBalance }: { freePlayBalance: num
   const [spinning, setSpinning] = useState(false);
   const [result, setResult] = useState<SpinResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const wagerNum = Number(wager);
+  const multiplier = rouletteBetMultiplier(betType);
+  const toWinTotal = wagerNum > 0 ? wagerNum * multiplier : null;
 
   async function handleSpin() {
     const w = Number(wager);
@@ -132,6 +144,12 @@ export default function RouletteGame({ freePlayBalance }: { freePlayBalance: num
         </button>
       </div>
       <p className="mt-1 text-xs text-slate-500">${MAX_CASINO_WAGER} max per spin</p>
+      {toWinTotal != null && (
+        <p className="mt-1 text-xs text-slate-400">
+          {formatMoney(wagerNum)} to win{" "}
+          <span className="font-semibold text-emerald-400">{formatMoney(toWinTotal)}</span>
+        </p>
+      )}
 
       {freePlayBalance > 0 && (
         <label className="mt-2 flex items-center gap-1.5 text-xs text-amber-400">
