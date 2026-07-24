@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireUser, blockIfAgentOnly } from "@/lib/auth";
 import { debitForWager, debitFreePlay, enforceBetRateLimit } from "@/lib/wager";
+import { MAX_CASINO_WAGER } from "@/lib/casino/limits";
 import { spinRoulette, type RouletteBetType } from "@/lib/casino/roulette";
 import { playBaccaratRound, type BaccaratBetType } from "@/lib/casino/baccarat";
 import {
@@ -18,6 +19,9 @@ import {
 function validateWager(wager: number) {
   if (!Number.isFinite(wager) || wager <= 0) {
     throw new Error("Wager must be a positive number");
+  }
+  if (wager > MAX_CASINO_WAGER) {
+    throw new Error(`Wager can't exceed $${MAX_CASINO_WAGER} per hand`);
   }
 }
 

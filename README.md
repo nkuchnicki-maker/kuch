@@ -417,6 +417,12 @@ maintaining it. To change the target, adjust `CASINO_HOUSE_EDGE` in
 [`src/lib/casino/rig.ts`](src/lib/casino/rig.ts) and re-verify with a
 simulation rather than assuming the constant equals the outcome.
 
+Every round is also capped at `MAX_CASINO_WAGER` (currently $100) per
+hand/spin/deal, enforced server-side in
+[`src/app/casino/actions.ts`](src/app/casino/actions.ts) — the wager
+inputs also set an HTML `max` attribute to match, but that's just a UI
+hint; only the server-side check is actually load-bearing.
+
 ## Weekly reset
 
 Every user's `coin_balance` snaps back to their `starting_balance` (set when

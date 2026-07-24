@@ -4,6 +4,7 @@ import { useState } from "react";
 import { placeRouletteBetAction } from "./actions";
 import { formatMoney } from "@/lib/format";
 import type { RouletteBetType } from "@/lib/casino/roulette";
+import { MAX_CASINO_WAGER } from "@/lib/casino/limits";
 
 const OUTSIDE_BETS: { value: RouletteBetType; label: string }[] = [
   { value: "red", label: "Red" },
@@ -103,6 +104,7 @@ export default function RouletteGame({ freePlayBalance }: { freePlayBalance: num
           onChange={(e) => setWager(e.target.value)}
           type="number"
           min={1}
+          max={MAX_CASINO_WAGER}
           placeholder="$ amount"
           className="w-32 rounded-lg border border-slate-700 bg-slate-800 px-2 py-1"
         />
@@ -114,6 +116,7 @@ export default function RouletteGame({ freePlayBalance }: { freePlayBalance: num
           {spinning ? "Spinning..." : "Spin"}
         </button>
       </div>
+      <p className="mt-1 text-xs text-slate-500">${MAX_CASINO_WAGER} max per spin</p>
 
       {freePlayBalance > 0 && (
         <label className="mt-2 flex items-center gap-1.5 text-xs text-amber-400">

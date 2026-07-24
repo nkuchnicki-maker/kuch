@@ -5,6 +5,7 @@ import { placeBaccaratBetAction } from "./actions";
 import { formatMoney } from "@/lib/format";
 import type { BaccaratBetType } from "@/lib/casino/baccarat";
 import type { Card } from "@/lib/casino/cards";
+import { MAX_CASINO_WAGER } from "@/lib/casino/limits";
 
 function CardView({ card }: { card: Card }) {
   const isRed = card.suit === "♥" || card.suit === "♦";
@@ -85,6 +86,7 @@ export default function BaccaratGame({ freePlayBalance }: { freePlayBalance: num
           onChange={(e) => setWager(e.target.value)}
           type="number"
           min={1}
+          max={MAX_CASINO_WAGER}
           placeholder="$ amount"
           className="w-32 rounded-lg border border-slate-700 bg-slate-800 px-2 py-1"
         />
@@ -96,6 +98,7 @@ export default function BaccaratGame({ freePlayBalance }: { freePlayBalance: num
           {dealing ? "Dealing..." : "Deal"}
         </button>
       </div>
+      <p className="mt-1 text-xs text-slate-500">${MAX_CASINO_WAGER} max per hand</p>
 
       {freePlayBalance > 0 && (
         <label className="mt-2 flex items-center gap-1.5 text-xs text-amber-400">
