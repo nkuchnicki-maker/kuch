@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireAdmin, requireAdminOrAgent, type CurrentUser } from "@/lib/auth";
+import { requireAdmin, requireAdminOrAgent, hashPassword, type CurrentUser } from "@/lib/auth";
 
 // Agents can only cancel bets for their own recruited users — same
 // ownership rule as setMinBalanceAction.
@@ -138,6 +138,32 @@ export async function cancelParlayAction(parlayId: string) {
   revalidatePath("/admin");
   revalidatePath("/leaderboard");
   revalidatePath("/picks");
+}
+
+// Passwords are stored as one-way bcrypt hashes — there is no "current
+// password" to show anyone, not even us. This sets a NEW known password
+// instead, which is the actual fix for "I need to help someone log in".
+// Same ownership rule as cancelling bets/setting min balance.
+export async function resetPasswordAction(formData: FormData) {
+  const viewer = await requireAdminOrAgent();
+
+  const userId = String(formData.get("userId"));
+  const newPassword = String(formData.get("newPassword") || "");
+
+  if (newPassword.length < 4) {
+    throw new Error("Password must be at least 4 characters");
+  }
+
+  await assertCanManageUser(viewer, userId);
+
+  const passwordHash = await hashPassword(newPassword);
+  const { rowCount } = await db.query(
+    "update users set password_hash = $1 where id = $2",
+    [passwordHash, userId],
+  );
+  if (!rowCount) throw new Error("User not found");
+
+  revalidatePath("/users");
 }
 
 // Free play is admin-only to grant/adjust — agents can view balances and

@@ -517,13 +517,19 @@ current balance, min balance, free play, and anything they still have
 pending (a live table, not a snapshot) — visibility isn't restricted by
 agent code.
 
-Each pending pick/parlay shown has a **✕** button that cancels it and
-refunds the wager in full (same math as a push — real money back via
-`coin_transactions` reason `pick_refund`, free play back to `free_play`),
-via `cancelPickAction`/`cancelParlayAction` in
-[`src/app/users/actions.ts`](src/app/users/actions.ts). This is for
+Each pending pick/parlay shown (right under the player's name) has a
+**✕** button that cancels it and refunds the wager in full (same math as
+a push — real money back via `coin_transactions` reason `pick_refund`,
+free play back to `free_play`), via `cancelPickAction`/`cancelParlayAction`
+in [`src/app/users/actions.ts`](src/app/users/actions.ts). This is for
 cleaning up a mistaken or unwanted bet on the spot, without waiting for
 the game to settle — it doesn't touch the game or line itself.
+
+There's also a **"Reset password"** field next to each player's name.
+Passwords are one-way bcrypt hashes — there's no "current password" to
+display to anyone, not even us — so this sets a *new* known password
+instead (`resetPasswordAction`), which is the actual fix for "I need to
+help someone log in."
 
 An account that's an agent but *not* an admin gets a stripped-down nav —
 just **Leaderboard**, **History**, and **Users**. Lines, Live Sports, My

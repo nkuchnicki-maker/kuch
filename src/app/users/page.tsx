@@ -4,7 +4,12 @@ import { getCurrentUser } from "@/lib/auth";
 import { formatMoney } from "@/lib/format";
 import { AGENTS } from "@/lib/agents";
 import { createUserAction, setMinBalanceAction } from "../admin/actions";
-import { adjustFreePlayAction, cancelPickAction, cancelParlayAction } from "./actions";
+import {
+  adjustFreePlayAction,
+  cancelPickAction,
+  cancelParlayAction,
+  resetPasswordAction,
+} from "./actions";
 import CancelBetButton from "./CancelBetButton";
 
 type UserRow = {
@@ -108,9 +113,11 @@ export default async function UsersPage() {
         Everyone&apos;s balance, minimum balance, free play, and anything
         they still have riding — cancel a pending pick or parlay to refund
         it in full (like a push) without waiting for the game to settle.
-        Only the admin can grant or adjust free play; min balance and
-        cancelling bets can be done by the admin or by an agent for their
-        own recruited users.
+        Passwords are one-way hashed, so there&apos;s nothing to display —
+        use &quot;Reset password&quot; to set a new one instead. Only the
+        admin can grant or adjust free play; min balance, resetting
+        passwords, and cancelling bets can be done by the admin or by an
+        agent for their own recruited users.
       </p>
 
       <section className="mb-8 rounded-xl border border-slate-800 bg-slate-900/80 p-6 shadow-lg shadow-black/20">
@@ -151,11 +158,10 @@ export default async function UsersPage() {
           <thead>
             <tr className="border-b border-slate-800 bg-slate-950/60 text-xs uppercase tracking-wide text-slate-400">
               <th className="px-4 py-3">Agent</th>
-              <th className="px-4 py-3">Player</th>
+              <th className="px-4 py-3">Player &amp; pending bets</th>
               <th className="px-4 py-3 text-right">Balance</th>
               <th className="px-4 py-3 text-right">Min balance</th>
               <th className="px-4 py-3 text-right">Free play</th>
-              <th className="px-4 py-3">Pending bets</th>
             </tr>
           </thead>
           <tbody>
@@ -176,6 +182,56 @@ export default async function UsersPage() {
                     <td className="px-4 py-3">
                       <div className="font-semibold">{u.display_name}</div>
                       <div className="text-xs text-slate-500">@{u.username}</div>
+                      {canManageBets && (
+                        <form action={resetPasswordAction} className="mt-1 flex gap-1">
+                          <input type="hidden" name="userId" value={u.id} />
+                          <input
+                            name="newPassword"
+                            type="text"
+                            placeholder="Reset password"
+                            required
+                            className="w-32 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs"
+                          />
+                          <button
+                            type="submit"
+                            className="rounded bg-slate-700 px-2 py-0.5 text-xs hover:bg-slate-600"
+                          >
+                            Set
+                          </button>
+                        </form>
+                      )}
+                      <div className="mt-2">
+                        {pending.length ? (
+                          <ul className="space-y-1.5">
+                            {pending.map((bet) => (
+                              <li
+                                key={`${bet.kind}-${bet.id}`}
+                                className="flex items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-950/60 px-2 py-1"
+                              >
+                                <div className="min-w-0">
+                                  <div className="truncate text-xs text-slate-300">
+                                    {bet.description}
+                                  </div>
+                                  <div className="font-mono text-xs text-slate-500">
+                                    {formatMoney(bet.wager)}
+                                    {bet.is_free_play && (
+                                      <span className="ml-1 text-amber-400">(FP)</span>
+                                    )}
+                                  </div>
+                                </div>
+                                {canManageBets && (
+                                  <CancelBetButton
+                                    action={bet.kind === "pick" ? cancelPickAction : cancelParlayAction}
+                                    betId={bet.id}
+                                  />
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <span className="text-xs text-slate-600">No pending bets</span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-right font-mono tabular-nums text-emerald-400">
                       {formatMoney(u.coin_balance)}
@@ -228,44 +284,12 @@ export default async function UsersPage() {
                         </form>
                       )}
                     </td>
-                    <td className="px-4 py-3">
-                      {pending.length ? (
-                        <ul className="space-y-1.5">
-                          {pending.map((bet) => (
-                            <li
-                              key={`${bet.kind}-${bet.id}`}
-                              className="flex items-center justify-between gap-2 rounded-lg border border-slate-800 bg-slate-950/60 px-2 py-1"
-                            >
-                              <div className="min-w-0">
-                                <div className="truncate text-xs text-slate-300">
-                                  {bet.description}
-                                </div>
-                                <div className="font-mono text-xs text-slate-500">
-                                  {formatMoney(bet.wager)}
-                                  {bet.is_free_play && (
-                                    <span className="ml-1 text-amber-400">(FP)</span>
-                                  )}
-                                </div>
-                              </div>
-                              {canManageBets && (
-                                <CancelBetButton
-                                  action={bet.kind === "pick" ? cancelPickAction : cancelParlayAction}
-                                  betId={bet.id}
-                                />
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <span className="text-xs text-slate-600">No pending bets</span>
-                      )}
-                    </td>
                   </tr>
                 );
               })
             ) : (
               <tr>
-                <td colSpan={6} className="py-6 text-center text-slate-500">
+                <td colSpan={5} className="py-6 text-center text-slate-500">
                   No users yet.
                 </td>
               </tr>
