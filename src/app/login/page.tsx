@@ -1,11 +1,19 @@
 "use client";
 
 import { useActionState } from "react";
+import Image from "next/image";
 import Logo from "../components/Logo";
-import SportsHeroBanner from "../components/SportsHeroBanner";
 import { loginAction, type LoginState } from "./actions";
 
 const initialState: LoginState = {};
+
+// Real action photos (Pexels free license, saved locally in /public/hero) —
+// football matchup, mid-air dunk, golf swing follow-through.
+const HERO_PANELS = [
+  { src: "/hero/football.jpg", alt: "Football players facing off mid-play" },
+  { src: "/hero/basketball.jpg", alt: "Basketball player rising for a dunk" },
+  { src: "/hero/golf.jpg", alt: "Golfer in a full swing follow-through" },
+];
 
 export default function LoginPage() {
   const [state, formAction, isPending] = useActionState(
@@ -15,10 +23,21 @@ export default function LoginPage() {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-950 px-4">
-      <div className="absolute inset-0">
-        <SportsHeroBanner />
+      <div className="absolute inset-0 grid grid-cols-1 sm:grid-cols-3">
+        {HERO_PANELS.map((p) => (
+          <div key={p.src} className="relative hidden sm:block first:block">
+            <Image
+              src={p.src}
+              alt={p.alt}
+              fill
+              priority
+              sizes="(max-width: 640px) 100vw, 34vw"
+              className="object-cover saturate-[0.85]"
+            />
+          </div>
+        ))}
       </div>
-      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/70 to-slate-950/30" />
+      <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/75 to-slate-950/40" />
 
       <div className="relative w-full max-w-sm rounded-2xl border border-slate-700/60 bg-slate-900/80 p-8 shadow-2xl shadow-emerald-950/50 backdrop-blur-sm">
         <div className="mb-1 flex items-center justify-center gap-2">

@@ -261,6 +261,17 @@ their own — no manual reload needed. The Lines (prematch) page doesn't
 auto-refresh, since nothing on it changes on a timescale where that
 matters.
 
+## Look & feel
+
+The login screen's backdrop is three real sports action photos (football
+matchup, basketball dunk, golf swing) shown as full-height panels behind
+the login card, with a gradient overlay + backdrop blur so the form stays
+readable. They live in `public/hero/` and are served through
+`next/image`. All three are from Pexels under its free license — free for
+commercial use, no attribution required. If you ever swap them, use
+similarly-licensed images (Pexels/Unsplash), never watermarked previews
+from paid stock sites.
+
 ## Bet integrity (line movement, market locks, and the live-bet hold)
 
 Sportsbook-style protection against betting on a number that's about to
