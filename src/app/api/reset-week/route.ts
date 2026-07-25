@@ -3,11 +3,12 @@ import { db } from "@/lib/db";
 import { runWeeklyResetIfDue } from "@/lib/weeklyReset";
 import { checkSyncSecret } from "@/lib/apiAuth";
 
-// Meant to be polled frequently (e.g. every 15 min, every day) by
-// .github/workflows/reset-week.yml — it's a no-op (one cheap query, no
-// external API calls) except on the first check after Sunday midnight
-// America/New_York, so polling often costs nothing. Protected by the same
-// shared secret as the other sync routes.
+// Runs once a week via Vercel Cron (see vercel.json) — Sunday 05:00 UTC,
+// which is at/shortly after Sunday midnight America/New_York depending on
+// DST. Vercel's Hobby plan caps cron jobs at once/day, so this can't poll
+// more often than weekly the way it used to; the route itself is still a
+// harmless no-op if somehow called outside that window. Protected by the
+// same shared secret as the other sync routes.
 export async function GET(request: NextRequest) {
   const unauthorized = checkSyncSecret(request);
   if (unauthorized) return unauthorized;
