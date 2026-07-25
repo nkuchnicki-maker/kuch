@@ -1,11 +1,9 @@
 name: Sync odds & scores
 
 on:
-  schedule:
-    # Every 15 minutes. With a large Odds API credit budget this is cheap
-    # (~34 credits/run, ~294k/month for all 6 sports + golf — see README "A
-    # note on the free tier's request budget" for the math at other tiers).
-    - cron: "*/15 * * * *"
+  # Scheduling moved to Vercel Cron (see vercel.json) — GitHub Actions'
+  # scheduled triggers aren't guaranteed to fire on time and were drifting
+  # by hours in practice. This workflow is now manual-only, for debugging.
   workflow_dispatch: {} # lets you trigger a run manually from the Actions tab
 
 jobs:

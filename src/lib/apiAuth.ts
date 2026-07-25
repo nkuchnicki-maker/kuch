@@ -12,17 +12,27 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(bufA, bufB);
 }
 
-// Shared guard for /api/sync, /api/sync/live, /api/reset-week — all three
-// are triggered by cron (or the admin's manual buttons) via a shared
-// secret header rather than a browser session. Returns an unauthorized
-// response to return immediately, or null if the request checks out.
+// Shared guard for /api/sync, /api/sync/live, /api/reset-week — triggered
+// by Vercel Cron (see vercel.json), the admin's manual buttons, or a
+// manual GitHub Actions workflow_dispatch run, none of which are a browser
+// session. Accepts either our own x-sync-secret header (manual/GH Actions)
+// or Vercel Cron's own Authorization: Bearer $CRON_SECRET (which Vercel
+// attaches automatically to its scheduled invocations when that env var
+// is set — see https://vercel.com/docs/cron-jobs/manage-cron-jobs#securing-cron-jobs).
+// Returns an unauthorized response to return immediately, or null if the
+// request checks out.
 export function checkSyncSecret(request: NextRequest): NextResponse | null {
-  const secret = process.env.SYNC_SECRET;
-  const provided = request.headers.get("x-sync-secret");
-
-  if (!secret || !provided || !safeEqual(provided, secret)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const syncSecret = process.env.SYNC_SECRET;
+  const providedSyncSecret = request.headers.get("x-sync-secret");
+  if (syncSecret && providedSyncSecret && safeEqual(providedSyncSecret, syncSecret)) {
+    return null;
   }
 
-  return null;
+  const cronSecret = process.env.CRON_SECRET;
+  const authHeader = request.headers.get("authorization");
+  if (cronSecret && authHeader && safeEqual(authHeader, `Bearer ${cronSecret}`)) {
+    return null;
+  }
+
+  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 }

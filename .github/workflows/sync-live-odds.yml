@@ -1,27 +1,18 @@
 name: Sync live odds
 
 on:
-  schedule:
-    # GitHub Actions can't reliably schedule more often than every 5
-    # minutes, so the trigger fires every 5 min but the job itself loops
-    # internally every 40s for most of that window — consecutive runs
-    # chain together into near-continuous ~40s live-odds refreshes without
-    # needing any infrastructure beyond GitHub Actions. Only spends API
-    # credits on sports with a game currently in progress — see README
-    # "Live betting" section for the real cost this adds.
-    - cron: "*/5 * * * *"
+  # Scheduling moved to Vercel Cron (see vercel.json), which now calls
+  # /api/sync/live every minute (looping internally ~25s apart for a
+  # near-30s cadence) — GitHub Actions' scheduled triggers aren't
+  # guaranteed to fire on time and were drifting by hours in practice.
+  # This workflow is now manual-only, for debugging.
   workflow_dispatch: {} # lets you trigger a run manually from the Actions tab
 
 jobs:
   sync-live:
     runs-on: ubuntu-latest
     steps:
-      - name: Poll live sync endpoint every 40s for this 5-minute window
+      - name: Call live sync endpoint once
         run: |
-          end=$((SECONDS + 260))
-          while [ "$SECONDS" -lt "$end" ]; do
-            status=$(curl -s -o /dev/null -w "%{http_code}" -X GET "${{ secrets.APP_URL }}/api/sync/live" \
-              -H "x-sync-secret: ${{ secrets.SYNC_SECRET }}") || status="curl-error"
-            echo "live sync check -> $status"
-            sleep 40
-          done
+          curl -sf -X GET "${{ secrets.APP_URL }}/api/sync/live" \
+            -H "x-sync-secret: ${{ secrets.SYNC_SECRET }}"
