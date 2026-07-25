@@ -6,8 +6,14 @@ const SPORT_ICONS: Record<string, string> = {
   MLB: "⚾",
   NHL: "🏒",
   Golf: "⛳",
+  EPL: "⚽",
 };
 
 export function sportIcon(sport: string): string {
-  return SPORT_ICONS[sport] ?? "🏆";
+  if (SPORT_ICONS[sport]) return SPORT_ICONS[sport];
+  if (sport.startsWith("ATP") || sport.startsWith("WTA")) return "🎾";
+  if (sport.includes("Open Championship") || sport.includes("Masters") || sport.includes("PGA")) {
+    return "⛳";
+  }
+  return "🏆";
 }

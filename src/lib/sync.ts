@@ -15,6 +15,15 @@ export const TRACKED_SPORTS: { key: string; label: string }[] = [
   { key: "basketball_ncaab", label: "NCAAB" },
   { key: "baseball_mlb", label: "MLB" },
   { key: "icehockey_nhl", label: "NHL" },
+  { key: "soccer_epl", label: "EPL" },
+  { key: "tennis_atp_aus_open_singles", label: "ATP Australian Open" },
+  { key: "tennis_atp_french_open", label: "ATP French Open" },
+  { key: "tennis_atp_wimbledon", label: "ATP Wimbledon" },
+  { key: "tennis_atp_us_open", label: "ATP US Open" },
+  { key: "tennis_wta_aus_open_singles", label: "WTA Australian Open" },
+  { key: "tennis_wta_french_open", label: "WTA French Open" },
+  { key: "tennis_wta_wimbledon", label: "WTA Wimbledon" },
+  { key: "tennis_wta_us_open", label: "WTA US Open" },
 ];
 
 // Golf works as "outright" events (a whole field of players, one winner)
