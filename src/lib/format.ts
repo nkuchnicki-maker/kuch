@@ -9,3 +9,20 @@ export function formatMoney(amount: number | string): string {
     maximumFractionDigits: 2,
   })}`;
 }
+
+// Formats a game start time in US Eastern, 12-hour clock, always labeled
+// "EST" regardless of DST — these pages render server-side, so leaving it
+// to toLocaleString() would show the server's own locale/timezone (24-hour,
+// not necessarily Eastern) instead of something meaningful to users.
+export function formatGameTime(dateInput: string | Date): string {
+  const date = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
+  const formatted = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
+  return `${formatted} EST`;
+}

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser, isAgentOnly } from "@/lib/auth";
 import { STANDARD_JUICE, formatAmericanOdds } from "@/lib/odds";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, formatGameTime } from "@/lib/format";
 import { sportIcon } from "@/lib/sportIcons";
 import SportFilter from "./SportFilter";
 import PickForm from "./PickForm";
@@ -96,7 +96,7 @@ export default async function LinesPage({
                       <h2 className="text-lg font-semibold">{g.event_name}</h2>
                     </div>
                     <span className="text-xs text-slate-500">
-                      {new Date(g.start_time).toLocaleString()}
+                      {formatGameTime(g.start_time)}
                     </span>
                   </div>
                   <OutrightPickForm
@@ -127,7 +127,7 @@ export default async function LinesPage({
                     </h2>
                   </div>
                   <span className="text-xs text-slate-500">
-                    {new Date(g.start_time).toLocaleString()}
+                    {formatGameTime(g.start_time)}
                   </span>
                 </div>
 
