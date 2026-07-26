@@ -71,7 +71,7 @@ export default function OutrightPickForm({
             required
             className="min-w-[220px] flex-1 rounded-lg border border-slate-700 bg-slate-800 px-2 py-1.5 text-sm"
           >
-            <option value="">Pick a player to win…</option>
+            <option value="">Pick a winner…</option>
             {participants.map((p) => (
               <option key={p.name} value={p.name}>
                 {p.name} ({p.odds > 0 ? "+" : ""}

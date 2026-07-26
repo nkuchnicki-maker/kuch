@@ -69,6 +69,7 @@ create table if not exists lines (
   total numeric, -- over/under
   moneyline_home integer,
   moneyline_away integer,
+  moneyline_draw integer, -- soccer only: 3-way market's draw price
   outrights jsonb, -- outright events only: [{"name": "Scottie Scheffler", "odds": 500}, ...]
   locked_until timestamptz, -- market paused after a big play/move until this passes
   last_big_move_at timestamptz, -- visibility marker, not itself a lock

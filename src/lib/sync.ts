@@ -1,6 +1,6 @@
 import "server-only";
 import type { Pool } from "pg";
-import { fetchOdds, fetchOutrights, fetchScores, pickBookmaker } from "./oddsApi";
+import { fetchOdds, fetchOutrights, fetchScores, pickBookmaker, pickMarket } from "./oddsApi";
 import { settlePicksForGame } from "./settle";
 import { isBigMove, lockedUntilTimestamp } from "./marketLock";
 
@@ -13,8 +13,10 @@ export const TRACKED_SPORTS: { key: string; label: string }[] = [
   { key: "americanfootball_ncaaf", label: "NCAAF" },
   { key: "basketball_nba", label: "NBA" },
   { key: "basketball_ncaab", label: "NCAAB" },
+  { key: "basketball_wnba", label: "WNBA" },
   { key: "baseball_mlb", label: "MLB" },
   { key: "icehockey_nhl", label: "NHL" },
+  { key: "mma_mixed_martial_arts", label: "MMA" },
   { key: "soccer_epl", label: "EPL" },
   { key: "soccer_usa_mls", label: "MLS" },
   { key: "soccer_brazil_campeonato", label: "Brazil Serie A" },
@@ -38,11 +40,32 @@ export const TRACKED_SPORTS: { key: string; label: string }[] = [
 // Golf works as "outright" events (a whole field of players, one winner)
 // rather than two-team matchups, so it's synced separately — no live
 // scores exist for these; the admin declares the winner manually.
-export const GOLF_TOURNAMENTS: { key: string; label: string }[] = [
-  { key: "golf_masters_tournament_winner", label: "The Masters" },
-  { key: "golf_the_open_championship_winner", label: "The Open Championship" },
-  { key: "golf_pga_championship_winner", label: "PGA Championship" },
-  { key: "golf_us_open_winner", label: "US Open" },
+export const GOLF_TOURNAMENTS: { key: string; label: string; sport: string }[] = [
+  { key: "golf_masters_tournament_winner", label: "The Masters", sport: "Golf" },
+  { key: "golf_the_open_championship_winner", label: "The Open Championship", sport: "Golf" },
+  { key: "golf_pga_championship_winner", label: "PGA Championship", sport: "Golf" },
+  { key: "golf_us_open_winner", label: "US Open", sport: "Golf" },
+];
+
+// Championship/title futures — same outright shape as golf (a whole field,
+// one eventual winner), but grouped under the same sport label as the
+// regular-season games (e.g. "NFL") so they show up together in the sport
+// filter instead of needing their own bucket.
+export const FUTURES_EVENTS: { key: string; label: string; sport: string }[] = [
+  { key: "americanfootball_nfl_super_bowl_winner", label: "Super Bowl Winner", sport: "NFL" },
+  {
+    key: "americanfootball_ncaaf_championship_winner",
+    label: "NCAAF Championship Winner",
+    sport: "NCAAF",
+  },
+  { key: "basketball_nba_championship_winner", label: "NBA Championship Winner", sport: "NBA" },
+  {
+    key: "basketball_ncaab_championship_winner",
+    label: "NCAAB Championship Winner",
+    sport: "NCAAB",
+  },
+  { key: "baseball_mlb_world_series_winner", label: "World Series Winner", sport: "MLB" },
+  { key: "icehockey_nhl_championship_winner", label: "NHL Championship Winner", sport: "NHL" },
 ];
 
 export type SyncSummary = {
@@ -88,17 +111,23 @@ export async function syncOddsForSport(
     // so updating this table never changes a past pick's payout.
     if (game.status !== "scheduled" && game.status !== "live") continue;
 
-    const bookmaker = pickBookmaker(event.bookmakers);
-    if (!bookmaker) continue;
+    if (!event.bookmakers.length) continue;
 
-    const h2h = bookmaker.markets.find((m) => m.key === "h2h");
-    const spreads = bookmaker.markets.find((m) => m.key === "spreads");
-    const totals = bookmaker.markets.find((m) => m.key === "totals");
+    // Picked independently per market (not from a single bookmaker) since
+    // a top-preference book often has moneyline for a game before it has
+    // spreads/totals, especially for smaller soccer leagues — see
+    // pickMarket's comment in oddsApi.ts.
+    const h2h = pickMarket(event.bookmakers, "h2h");
+    const spreads = pickMarket(event.bookmakers, "spreads");
+    const totals = pickMarket(event.bookmakers, "totals");
 
     const homeSpread = spreads?.outcomes.find((o) => o.name === event.home_team)?.point;
     const total = totals?.outcomes[0]?.point;
     const moneylineHome = h2h?.outcomes.find((o) => o.name === event.home_team)?.price;
     const moneylineAway = h2h?.outcomes.find((o) => o.name === event.away_team)?.price;
+    // Soccer's h2h market has a third "Draw" outcome; other sports simply
+    // won't have one, leaving this null.
+    const moneylineDraw = h2h?.outcomes.find((o) => o.name === "Draw")?.price;
 
     try {
       const { rows: existingRows } = await db.query<{
@@ -130,15 +159,16 @@ export async function syncOddsForSport(
 
       await db.query(
         `insert into lines (
-           game_id, spread, total, moneyline_home, moneyline_away, updated_at,
-           last_big_move_at, locked_until
+           game_id, spread, total, moneyline_home, moneyline_away, moneyline_draw,
+           updated_at, last_big_move_at, locked_until
          )
-         values ($1, $2, $3, $4, $5, now(), $6, $7)
+         values ($1, $2, $3, $4, $5, $6, now(), $7, $8)
          on conflict (game_id) do update set
            spread = excluded.spread,
            total = excluded.total,
            moneyline_home = excluded.moneyline_home,
            moneyline_away = excluded.moneyline_away,
+           moneyline_draw = excluded.moneyline_draw,
            updated_at = now(),
            last_big_move_at = coalesce(excluded.last_big_move_at, lines.last_big_move_at),
            locked_until = coalesce(excluded.locked_until, lines.locked_until)`,
@@ -148,6 +178,7 @@ export async function syncOddsForSport(
           total ?? null,
           moneylineHome ?? null,
           moneylineAway ?? null,
+          moneylineDraw ?? null,
           bigMove ? new Date() : null,
           shouldLock ? lockedUntilTimestamp() : null,
         ],
@@ -163,13 +194,14 @@ export async function syncOddsForSport(
   return { gamesUpserted, errors };
 }
 
-export async function syncGolfOutrights(
+export async function syncOutrightEvents(
   db: Pool,
+  tournaments: { key: string; label: string; sport: string }[],
 ): Promise<{ gamesUpserted: number; errors: string[] }> {
   const errors: string[] = [];
   let gamesUpserted = 0;
 
-  for (const { key, label } of GOLF_TOURNAMENTS) {
+  for (const { key, label, sport } of tournaments) {
     let events;
     try {
       events = await fetchOutrights(key);
@@ -183,12 +215,12 @@ export async function syncGolfOutrights(
       try {
         const { rows } = await db.query<{ id: string; status: string }>(
           `insert into games (external_id, sport, event_type, event_name, start_time)
-           values ($1, 'Golf', 'outright', $2, $3)
+           values ($1, $2, 'outright', $3, $4)
            on conflict (external_id) do update set
              event_name = excluded.event_name,
              start_time = excluded.start_time
            returning id, status`,
-          [event.id, label, event.commence_time],
+          [event.id, sport, label, event.commence_time],
         );
         game = rows[0];
       } catch (err) {
@@ -395,7 +427,7 @@ export async function syncAllTrackedSports(db: Pool): Promise<SyncSummary[]> {
   const golfErrors: string[] = [];
   let golfGamesUpserted = 0;
   try {
-    const golfResult = await syncGolfOutrights(db);
+    const golfResult = await syncOutrightEvents(db, GOLF_TOURNAMENTS);
     golfGamesUpserted = golfResult.gamesUpserted;
     golfErrors.push(...golfResult.errors);
   } catch (err) {
@@ -406,6 +438,22 @@ export async function syncAllTrackedSports(db: Pool): Promise<SyncSummary[]> {
     gamesUpserted: golfGamesUpserted,
     gamesSettled: 0,
     errors: golfErrors,
+  });
+
+  const futuresErrors: string[] = [];
+  let futuresGamesUpserted = 0;
+  try {
+    const futuresResult = await syncOutrightEvents(db, FUTURES_EVENTS);
+    futuresGamesUpserted = futuresResult.gamesUpserted;
+    futuresErrors.push(...futuresResult.errors);
+  } catch (err) {
+    futuresErrors.push(`futures: ${(err as Error).message}`);
+  }
+  summaries.push({
+    sport: "Futures",
+    gamesUpserted: futuresGamesUpserted,
+    gamesSettled: 0,
+    errors: futuresErrors,
   });
 
   return summaries;

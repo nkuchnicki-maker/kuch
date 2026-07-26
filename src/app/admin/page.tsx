@@ -288,7 +288,7 @@ export default async function AdminPage() {
                   </td>
                   <td className="text-xs text-slate-400">
                     {isOutright ? (
-                      <div>{g.outrights?.length ?? 0} players</div>
+                      <div>{g.outrights?.length ?? 0} entries</div>
                     ) : (
                       <>
                         {g.spread != null && <div>Spread: {g.spread}</div>}

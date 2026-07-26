@@ -21,6 +21,7 @@ type GameLineRow = {
   total: string | null;
   moneyline_home: number | null;
   moneyline_away: number | null;
+  moneyline_draw: number | null;
   outrights: { name: string; odds: number }[] | null;
 };
 
@@ -42,7 +43,7 @@ export default async function LinesPage({
   // sync catches up.
   const { rows: allGames } = await db.query<GameLineRow>(`
     select g.id, g.sport, g.event_type, g.home_team, g.away_team, g.event_name, g.start_time,
-           l.id as line_id, l.spread, l.total, l.moneyline_home, l.moneyline_away, l.outrights
+           l.id as line_id, l.spread, l.total, l.moneyline_home, l.moneyline_away, l.moneyline_draw, l.outrights
     from games g
     join lines l on l.game_id = g.id
     where g.status = 'scheduled' and g.start_time > now()
@@ -191,6 +192,15 @@ export default async function LinesPage({
                           label: `${g.away_team} ${g.moneyline_away > 0 ? "+" : ""}${g.moneyline_away}`,
                           odds: g.moneyline_away,
                         },
+                        ...(g.moneyline_draw != null
+                          ? [
+                              {
+                                value: "draw",
+                                label: `Draw ${g.moneyline_draw > 0 ? "+" : ""}${g.moneyline_draw}`,
+                                odds: g.moneyline_draw,
+                              },
+                            ]
+                          : []),
                       ]}
                       freePlayBalance={Number(user.free_play)}
                     />

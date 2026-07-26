@@ -87,3 +87,25 @@ export function pickBookmaker(
   }
   return bookmakers[0];
 }
+
+// Picks the market independently per market type rather than locking onto
+// one bookmaker for everything — a top-preference book (e.g. DraftKings)
+// often posts moneyline for a game well before spreads/totals, especially
+// for smaller soccer leagues, while another book already has the full set.
+// Confirmed live: DraftKings had only h2h for a Brazil Serie A game while
+// bovada/betmgm/etc already had spreads and totals for the same game.
+export function pickMarket(
+  bookmakers: OddsApiBookmaker[],
+  marketKey: OddsApiMarket["key"],
+): OddsApiMarket | undefined {
+  for (const key of PREFERRED_BOOKMAKERS) {
+    const bookmaker = bookmakers.find((b) => b.key === key);
+    const market = bookmaker?.markets.find((m) => m.key === marketKey);
+    if (market) return market;
+  }
+  for (const bookmaker of bookmakers) {
+    const market = bookmaker.markets.find((m) => m.key === marketKey);
+    if (market) return market;
+  }
+  return undefined;
+}

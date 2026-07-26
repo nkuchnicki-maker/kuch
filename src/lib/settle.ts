@@ -7,6 +7,12 @@ type Outcome = "win" | "loss" | "push";
 // Pure win/loss/push logic for a two-team matchup pick, shared by straight
 // picks and parlay legs. Returns null if the line is missing the field
 // needed to grade this pick type (shouldn't happen in practice).
+//
+// hasDrawOption marks a soccer-style 3-way moneyline (the line had a real
+// Draw price at pick time) — a tie there is a genuine "draw" outcome with
+// its own price, not a push: home/away lose outright, and "draw" itself
+// becomes a winnable pick_side. Every other sport keeps the old push-on-tie
+// 2-way behavior (rare, but possible — e.g. an NFL tie).
 export function determineMatchupOutcome(
   pickType: string,
   pickSide: string,
@@ -14,6 +20,7 @@ export function determineMatchupOutcome(
   total: number | null,
   homeScore: number,
   awayScore: number,
+  hasDrawOption = false,
 ): Outcome | null {
   if (pickType === "spread" && spread != null) {
     const adjustedHome = homeScore + spread;
@@ -28,6 +35,12 @@ export function determineMatchupOutcome(
     return sum < total ? "win" : "loss";
   }
   if (pickType === "moneyline") {
+    if (hasDrawOption) {
+      if (homeScore === awayScore) return pickSide === "draw" ? "win" : "loss";
+      if (pickSide === "draw") return "loss";
+      if (pickSide === "home") return homeScore > awayScore ? "win" : "loss";
+      return awayScore > homeScore ? "win" : "loss";
+    }
     if (homeScore === awayScore) return "push";
     if (pickSide === "home") return homeScore > awayScore ? "win" : "loss";
     return awayScore > homeScore ? "win" : "loss";
@@ -178,10 +191,12 @@ async function settleMatchupParlayLegs(
     pick_side: string;
     spread: string | null;
     total: string | null;
+    moneyline_draw: number | null;
   }>(
     `select pl.id, pl.parlay_id, pl.pick_type, pl.pick_side,
             coalesce(pl.spread_at_pick, l.spread) as spread,
-            coalesce(pl.total_at_pick, l.total) as total
+            coalesce(pl.total_at_pick, l.total) as total,
+            l.moneyline_draw
      from parlay_legs pl
      join lines l on l.id = pl.line_id
      where pl.game_id = $1 and pl.status = 'pending'`,
@@ -197,6 +212,7 @@ async function settleMatchupParlayLegs(
       leg.total != null ? Number(leg.total) : null,
       homeScore,
       awayScore,
+      leg.moneyline_draw != null,
     );
     if (!outcome) continue;
     await db.query(
@@ -262,11 +278,13 @@ export async function settlePicksForGame(
     is_free_play: boolean;
     spread: string | null;
     total: string | null;
+    moneyline_draw: number | null;
   }>(
     `select p.id, p.user_id, p.pick_type, p.pick_side, p.wager, p.potential_payout,
             p.is_free_play,
             coalesce(p.spread_at_pick, l.spread) as spread,
-            coalesce(p.total_at_pick, l.total) as total
+            coalesce(p.total_at_pick, l.total) as total,
+            l.moneyline_draw
      from picks p
      join lines l on l.id = p.line_id
      where p.game_id = $1 and p.status = 'pending'`,
@@ -281,6 +299,7 @@ export async function settlePicksForGame(
       pick.total != null ? Number(pick.total) : null,
       homeScore,
       awayScore,
+      pick.moneyline_draw != null,
     );
     if (!outcome) continue; // line missing needed field, skip (shouldn't happen)
 

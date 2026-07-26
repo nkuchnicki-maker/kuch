@@ -43,6 +43,7 @@ export type LineSnapshot = {
   total: number | null;
   moneylineHome: number | null;
   moneylineAway: number | null;
+  moneylineDraw: number | null;
   lockedUntil: string | null;
 };
 
@@ -52,9 +53,10 @@ export async function fetchLineSnapshot(db: Pool, lineId: string): Promise<LineS
     total: string | null;
     moneyline_home: number | null;
     moneyline_away: number | null;
+    moneyline_draw: number | null;
     locked_until: string | null;
   }>(
-    "select spread, total, moneyline_home, moneyline_away, locked_until from lines where id = $1",
+    "select spread, total, moneyline_home, moneyline_away, moneyline_draw, locked_until from lines where id = $1",
     [lineId],
   );
   const row = rows[0];
@@ -64,6 +66,7 @@ export async function fetchLineSnapshot(db: Pool, lineId: string): Promise<LineS
     total: row.total != null ? Number(row.total) : null,
     moneylineHome: row.moneyline_home,
     moneylineAway: row.moneyline_away,
+    moneylineDraw: row.moneyline_draw,
     lockedUntil: row.locked_until,
   };
 }
@@ -83,6 +86,7 @@ function relevantValue(
   if (pickType === "spread") return snapshot.spread;
   if (pickType === "total") return snapshot.total;
   if (pickType === "moneyline") {
+    if (pickSide === "draw") return snapshot.moneylineDraw;
     return pickSide === "home" ? snapshot.moneylineHome : snapshot.moneylineAway;
   }
   return null;

@@ -62,9 +62,11 @@ export async function placePickAction(formData: FormData) {
 
   const odds =
     pickType === "moneyline"
-      ? pickSide === "home"
-        ? line.moneylineHome
-        : line.moneylineAway
+      ? pickSide === "draw"
+        ? line.moneylineDraw
+        : pickSide === "home"
+          ? line.moneylineHome
+          : line.moneylineAway
       : STANDARD_JUICE;
 
   if (odds == null) throw new Error("Bet rejected: odds unavailable for that pick");
@@ -225,6 +227,7 @@ export async function placeParlayAction(
         total: null,
         moneylineHome: null,
         moneylineAway: null,
+        moneylineDraw: null,
         lockedUntil: null,
       };
     } else {
@@ -233,9 +236,11 @@ export async function placeParlayAction(
       snapshot = snap;
       odds =
         leg.pickType === "moneyline"
-          ? leg.pickSide === "home"
-            ? snap.moneylineHome
-            : snap.moneylineAway
+          ? leg.pickSide === "draw"
+            ? snap.moneylineDraw
+            : leg.pickSide === "home"
+              ? snap.moneylineHome
+              : snap.moneylineAway
           : STANDARD_JUICE;
     }
 
@@ -361,7 +366,7 @@ export async function placeOutrightPickAction(formData: FormData) {
   const wager = Number(formData.get("wager"));
   const isFreePlay = formData.get("isFreePlay") === "true";
 
-  if (!participantName) throw new Error("Bet rejected: pick a player");
+  if (!participantName) throw new Error("Bet rejected: pick a winner");
   if (!Number.isFinite(wager) || wager <= 0) {
     throw new Error("Bet rejected: wager must be a positive number");
   }
@@ -384,7 +389,7 @@ export async function placeOutrightPickAction(formData: FormData) {
   const participant = lineRows[0]?.outrights?.find(
     (p) => p.name === participantName,
   );
-  if (!participant) throw new Error("Bet rejected: player not found in this field");
+  if (!participant) throw new Error("Bet rejected: entry not found in this field");
 
   const potentialPayout = payoutForOdds(participant.odds, wager);
 
