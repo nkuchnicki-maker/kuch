@@ -1,14 +1,16 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse, type NextRequest, after } from "next/server";
 import { db } from "@/lib/db";
 import { syncLiveOdds } from "@/lib/sync";
 import { checkSyncSecret } from "@/lib/apiAuth";
 
-// Vercel Cron's finest granularity is 1 minute (see vercel.json), so this
-// runs syncLiveOdds twice per invocation ~25s apart to get closer to a
-// real-time feel without needing infrastructure beyond Vercel Cron. Only
-// spends API credits on sports that currently have a live game, so it
-// costs ~0 when nothing is in progress. Protected by the same shared
-// secret as /api/sync.
+// Called every ~1 min by an external cron-ping service (see README "Adding
+// live odds"). Responds immediately and runs two passes of syncLiveOdds
+// ~25s apart via after(), so a real-time feel doesn't depend on the
+// caller's own timeout (free cron-ping tiers are often 10-30s) — the
+// caller just sees a fast 200 while the actual sync keeps running
+// server-side. Only spends API credits on sports that currently have a
+// live game, so it costs ~0 when nothing is in progress. Protected by the
+// same shared secret as /api/sync.
 export const maxDuration = 100;
 
 function sleep(ms: number) {
@@ -19,9 +21,11 @@ export async function GET(request: NextRequest) {
   const unauthorized = checkSyncSecret(request);
   if (unauthorized) return unauthorized;
 
-  const first = await syncLiveOdds(db);
-  await sleep(25_000);
-  const second = await syncLiveOdds(db);
+  after(async () => {
+    await syncLiveOdds(db);
+    await sleep(25_000);
+    await syncLiveOdds(db);
+  });
 
-  return NextResponse.json({ summaries: second, previousPass: first });
+  return NextResponse.json({ status: "started" });
 }
