@@ -16,14 +16,23 @@ export const TRACKED_SPORTS: { key: string; label: string }[] = [
   { key: "baseball_mlb", label: "MLB" },
   { key: "icehockey_nhl", label: "NHL" },
   { key: "soccer_epl", label: "EPL" },
+  { key: "soccer_usa_mls", label: "MLS" },
+  { key: "soccer_brazil_campeonato", label: "Brazil Serie A" },
+  { key: "soccer_argentina_primera_division", label: "Argentina Primera" },
+  { key: "soccer_conmebol_copa_libertadores", label: "Copa Libertadores" },
+  { key: "soccer_conmebol_copa_sudamericana", label: "Copa Sudamericana" },
   { key: "tennis_atp_aus_open_singles", label: "ATP Australian Open" },
   { key: "tennis_atp_french_open", label: "ATP French Open" },
   { key: "tennis_atp_wimbledon", label: "ATP Wimbledon" },
   { key: "tennis_atp_us_open", label: "ATP US Open" },
+  { key: "tennis_atp_canadian_open", label: "ATP Canadian Open" },
+  { key: "tennis_atp_cincinnati_open", label: "ATP Cincinnati Open" },
   { key: "tennis_wta_aus_open_singles", label: "WTA Australian Open" },
   { key: "tennis_wta_french_open", label: "WTA French Open" },
   { key: "tennis_wta_wimbledon", label: "WTA Wimbledon" },
   { key: "tennis_wta_us_open", label: "WTA US Open" },
+  { key: "tennis_wta_canadian_open", label: "WTA Canadian Open" },
+  { key: "tennis_wta_cincinnati_open", label: "WTA Cincinnati Open" },
 ];
 
 // Golf works as "outright" events (a whole field of players, one winner)

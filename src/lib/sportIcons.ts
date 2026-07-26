@@ -7,6 +7,11 @@ const SPORT_ICONS: Record<string, string> = {
   NHL: "🏒",
   Golf: "⛳",
   EPL: "⚽",
+  MLS: "⚽",
+  "Brazil Serie A": "⚽",
+  "Argentina Primera": "⚽",
+  "Copa Libertadores": "⚽",
+  "Copa Sudamericana": "⚽",
 };
 
 export function sportIcon(sport: string): string {
