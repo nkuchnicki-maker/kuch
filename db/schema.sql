@@ -191,4 +191,5 @@ select
   ), 0) as net_this_week
 from users u
 left join coin_transactions ct on ct.user_id = u.id
+where not u.is_admin and not u.is_agent
 group by u.id, u.username, u.display_name, u.coin_balance, u.created_at;
