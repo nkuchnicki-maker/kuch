@@ -61,7 +61,7 @@ export default async function LeaderboardPage() {
         from picks p
         join users u on u.id = p.user_id
         join games g on g.id = p.game_id
-        where not u.is_admin and not u.is_agent
+        where not u.is_admin and not u.is_agent and u.username <> 'Test'
         order by p.created_at desc
         limit 20
       `),
@@ -71,7 +71,7 @@ export default async function LeaderboardPage() {
         from parlays pa
         join users u on u.id = pa.user_id
         join parlay_legs pl on pl.parlay_id = pa.id
-        where not u.is_admin and not u.is_agent
+        where not u.is_admin and not u.is_agent and u.username <> 'Test'
         group by pa.id, u.display_name
         order by pa.created_at desc
         limit 20
