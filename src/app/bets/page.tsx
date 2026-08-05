@@ -16,24 +16,36 @@ type PendingPickRow = {
   created_at: string;
 };
 
-type PendingParlayRow = {
-  id: string;
+type PendingParlayLegRow = {
+  parlay_id: string;
   display_name: string;
   wager: string;
   is_free_play: boolean;
-  leg_count: string;
   created_at: string;
+  pick_type: string;
+  pick_side: string;
+  description: string;
 };
 
-type PendingBet = {
-  id: string;
-  kind: "pick" | "parlay";
-  display_name: string;
-  wager: string;
-  is_free_play: boolean;
-  description: string;
-  created_at: string;
-};
+type PendingBet =
+  | {
+      id: string;
+      kind: "pick";
+      display_name: string;
+      wager: string;
+      is_free_play: boolean;
+      created_at: string;
+      description: string;
+    }
+  | {
+      id: string;
+      kind: "parlay";
+      display_name: string;
+      wager: string;
+      is_free_play: boolean;
+      created_at: string;
+      legs: { pick_type: string; pick_side: string; description: string }[];
+    };
 
 // Admin/agent-only: every pending bet across every user, in one place, with
 // a cancel/refund button — same mechanics as the pending-bets list on the
@@ -53,7 +65,7 @@ export default async function BetsPage() {
     );
   }
 
-  const [{ rows: pendingPicks }, { rows: pendingParlays }] = await Promise.all([
+  const [{ rows: pendingPicks }, { rows: pendingParlayLegs }] = await Promise.all([
     db.query<PendingPickRow>(`
       select p.id, u.display_name, p.wager, p.is_free_play, p.pick_type, p.pick_side, p.created_at,
              coalesce(g.event_name, g.away_team || ' @ ' || g.home_team) as description
@@ -63,36 +75,54 @@ export default async function BetsPage() {
       where p.status = 'pending'
       order by p.created_at desc
     `),
-    db.query<PendingParlayRow>(`
-      select pa.id, u.display_name, pa.wager, pa.is_free_play, pa.created_at, count(pl.id) as leg_count
+    db.query<PendingParlayLegRow>(`
+      select pa.id as parlay_id, u.display_name, pa.wager, pa.is_free_play, pa.created_at,
+             pl.pick_type, pl.pick_side,
+             coalesce(g.event_name, g.away_team || ' @ ' || g.home_team) as description
       from parlays pa
       join users u on u.id = pa.user_id
       join parlay_legs pl on pl.parlay_id = pa.id
+      join games g on g.id = pl.game_id
       where pa.status = 'pending'
-      group by pa.id, u.display_name
-      order by pa.created_at desc
+      order by pa.created_at desc, pl.id
     `),
   ]);
 
+  const parlaysById = new Map<string, Extract<PendingBet, { kind: "parlay" }>>();
+  for (const row of pendingParlayLegs) {
+    let parlay = parlaysById.get(row.parlay_id);
+    if (!parlay) {
+      parlay = {
+        id: row.parlay_id,
+        kind: "parlay",
+        display_name: row.display_name,
+        wager: row.wager,
+        is_free_play: row.is_free_play,
+        created_at: row.created_at,
+        legs: [],
+      };
+      parlaysById.set(row.parlay_id, parlay);
+    }
+    parlay.legs.push({
+      pick_type: row.pick_type,
+      pick_side: row.pick_side,
+      description: row.description,
+    });
+  }
+
   const bets: PendingBet[] = [
-    ...pendingPicks.map((p) => ({
-      id: p.id,
-      kind: "pick" as const,
-      display_name: p.display_name,
-      wager: p.wager,
-      is_free_play: p.is_free_play,
-      description: `${p.pick_type} — ${p.pick_side} · ${p.description}`,
-      created_at: p.created_at,
-    })),
-    ...pendingParlays.map((p) => ({
-      id: p.id,
-      kind: "parlay" as const,
-      display_name: p.display_name,
-      wager: p.wager,
-      is_free_play: p.is_free_play,
-      description: `${p.leg_count}-leg parlay`,
-      created_at: p.created_at,
-    })),
+    ...pendingPicks.map(
+      (p): PendingBet => ({
+        id: p.id,
+        kind: "pick",
+        display_name: p.display_name,
+        wager: p.wager,
+        is_free_play: p.is_free_play,
+        description: `${p.pick_type} — ${p.pick_side} · ${p.description}`,
+        created_at: p.created_at,
+      }),
+    ),
+    ...parlaysById.values(),
   ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   return (
@@ -113,12 +143,32 @@ export default async function BetsPage() {
           <tbody>
             {bets.length ? (
               bets.map((bet) => (
-                <tr key={bet.id} className="border-b border-slate-800/50">
+                <tr key={bet.id} className="border-b border-slate-800/50 align-top">
                   <td className="px-4 py-3 font-medium">{bet.display_name}</td>
                   <td>
-                    {bet.description}
-                    {bet.is_free_play && (
-                      <span className="ml-2 text-xs text-amber-400">(FP)</span>
+                    {bet.kind === "pick" ? (
+                      <>
+                        {bet.description}
+                        {bet.is_free_play && (
+                          <span className="ml-2 text-xs text-amber-400">(FP)</span>
+                        )}
+                      </>
+                    ) : (
+                      <div>
+                        <div className="mb-1 text-xs font-semibold text-slate-400">
+                          {bet.legs.length}-leg parlay
+                          {bet.is_free_play && (
+                            <span className="ml-2 text-amber-400">(FP)</span>
+                          )}
+                        </div>
+                        <ul className="space-y-0.5">
+                          {bet.legs.map((leg, i) => (
+                            <li key={i} className="text-slate-300">
+                              {leg.pick_type} — {leg.pick_side} · {leg.description}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     )}
                   </td>
                   <td className="font-mono">{formatMoney(bet.wager)}</td>
