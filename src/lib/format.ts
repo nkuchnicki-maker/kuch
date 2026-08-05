@@ -26,3 +26,36 @@ export function formatGameTime(dateInput: string | Date): string {
   }).format(date);
   return `${formatted} EST`;
 }
+
+// Turns a pick into a short, plain-English label — "Chicago White Sox ML",
+// "Chicago White Sox -3.5", "Over 8.5", "Draw" — instead of the raw
+// pick_type/pick_side jargon ("moneyline — home"). Used anywhere admins/
+// agents need to scan a lot of bets quickly (e.g. the Bets tab).
+export function describePick(params: {
+  pickType: string;
+  pickSide: string;
+  homeTeam: string | null;
+  awayTeam: string | null;
+  spread: number | null;
+  total: number | null;
+}): string {
+  const { pickType, pickSide, homeTeam, awayTeam, spread, total } = params;
+
+  if (pickType === "moneyline") {
+    if (pickSide === "draw") return "Draw";
+    const team = pickSide === "home" ? homeTeam : awayTeam;
+    return `${team ?? "?"} ML`;
+  }
+  if (pickType === "spread" && spread != null) {
+    const teamSpread = pickSide === "home" ? spread : -spread;
+    const team = pickSide === "home" ? homeTeam : awayTeam;
+    return `${team ?? "?"} ${teamSpread > 0 ? "+" : ""}${teamSpread}`;
+  }
+  if (pickType === "total" && total != null) {
+    return `${pickSide === "over" ? "Over" : "Under"} ${total}`;
+  }
+  if (pickType === "outright") {
+    return pickSide; // pick_side IS the participant/team name for outrights
+  }
+  return `${pickType} — ${pickSide}`;
+}

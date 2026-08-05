@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, describePick } from "@/lib/format";
 import { cancelPickAction, cancelParlayAction } from "../users/actions";
 import CancelBetButton from "../users/CancelBetButton";
 
@@ -12,7 +12,11 @@ type PendingPickRow = {
   is_free_play: boolean;
   pick_type: string;
   pick_side: string;
-  description: string;
+  home_team: string | null;
+  away_team: string | null;
+  event_name: string | null;
+  spread: string | null;
+  total: string | null;
   created_at: string;
 };
 
@@ -24,8 +28,14 @@ type PendingParlayLegRow = {
   created_at: string;
   pick_type: string;
   pick_side: string;
-  description: string;
+  home_team: string | null;
+  away_team: string | null;
+  event_name: string | null;
+  spread: string | null;
+  total: string | null;
 };
+
+type LegDisplay = { label: string; matchup: string };
 
 type PendingBet =
   | {
@@ -35,7 +45,7 @@ type PendingBet =
       wager: string;
       is_free_play: boolean;
       created_at: string;
-      description: string;
+      leg: LegDisplay;
     }
   | {
       id: string;
@@ -44,8 +54,34 @@ type PendingBet =
       wager: string;
       is_free_play: boolean;
       created_at: string;
-      legs: { pick_type: string; pick_side: string; description: string }[];
+      legs: LegDisplay[];
     };
+
+function matchupFor(row: { home_team: string | null; away_team: string | null; event_name: string | null }) {
+  return row.event_name ?? `${row.away_team} @ ${row.home_team}`;
+}
+
+function legDisplayFor(row: {
+  pick_type: string;
+  pick_side: string;
+  home_team: string | null;
+  away_team: string | null;
+  event_name: string | null;
+  spread: string | null;
+  total: string | null;
+}): LegDisplay {
+  return {
+    label: describePick({
+      pickType: row.pick_type,
+      pickSide: row.pick_side,
+      homeTeam: row.home_team,
+      awayTeam: row.away_team,
+      spread: row.spread != null ? Number(row.spread) : null,
+      total: row.total != null ? Number(row.total) : null,
+    }),
+    matchup: matchupFor(row),
+  };
+}
 
 // Admin/agent-only: every pending bet across every user, in one place, with
 // a cancel/refund button — same mechanics as the pending-bets list on the
@@ -68,21 +104,23 @@ export default async function BetsPage() {
   const [{ rows: pendingPicks }, { rows: pendingParlayLegs }] = await Promise.all([
     db.query<PendingPickRow>(`
       select p.id, u.display_name, p.wager, p.is_free_play, p.pick_type, p.pick_side, p.created_at,
-             coalesce(g.event_name, g.away_team || ' @ ' || g.home_team) as description
+             g.home_team, g.away_team, g.event_name, l.spread, l.total
       from picks p
       join users u on u.id = p.user_id
       join games g on g.id = p.game_id
+      join lines l on l.id = p.line_id
       where p.status = 'pending'
       order by p.created_at desc
     `),
     db.query<PendingParlayLegRow>(`
       select pa.id as parlay_id, u.display_name, pa.wager, pa.is_free_play, pa.created_at,
              pl.pick_type, pl.pick_side,
-             coalesce(g.event_name, g.away_team || ' @ ' || g.home_team) as description
+             g.home_team, g.away_team, g.event_name, l.spread, l.total
       from parlays pa
       join users u on u.id = pa.user_id
       join parlay_legs pl on pl.parlay_id = pa.id
       join games g on g.id = pl.game_id
+      join lines l on l.id = pl.line_id
       where pa.status = 'pending'
       order by pa.created_at desc, pl.id
     `),
@@ -103,11 +141,7 @@ export default async function BetsPage() {
       };
       parlaysById.set(row.parlay_id, parlay);
     }
-    parlay.legs.push({
-      pick_type: row.pick_type,
-      pick_side: row.pick_side,
-      description: row.description,
-    });
+    parlay.legs.push(legDisplayFor(row));
   }
 
   const bets: PendingBet[] = [
@@ -118,8 +152,8 @@ export default async function BetsPage() {
         display_name: p.display_name,
         wager: p.wager,
         is_free_play: p.is_free_play,
-        description: `${p.pick_type} — ${p.pick_side} · ${p.description}`,
         created_at: p.created_at,
+        leg: legDisplayFor(p),
       }),
     ),
     ...parlaysById.values(),
@@ -145,13 +179,14 @@ export default async function BetsPage() {
               bets.map((bet) => (
                 <tr key={bet.id} className="border-b border-slate-800/50 align-top">
                   <td className="px-4 py-3 font-medium">{bet.display_name}</td>
-                  <td>
+                  <td className="py-2">
                     {bet.kind === "pick" ? (
                       <>
-                        {bet.description}
+                        <span className="font-semibold">{bet.leg.label}</span>
                         {bet.is_free_play && (
                           <span className="ml-2 text-xs text-amber-400">(FP)</span>
                         )}
+                        <div className="text-xs text-slate-500">{bet.leg.matchup}</div>
                       </>
                     ) : (
                       <div>
@@ -161,10 +196,11 @@ export default async function BetsPage() {
                             <span className="ml-2 text-amber-400">(FP)</span>
                           )}
                         </div>
-                        <ul className="space-y-0.5">
+                        <ul className="space-y-1">
                           {bet.legs.map((leg, i) => (
-                            <li key={i} className="text-slate-300">
-                              {leg.pick_type} — {leg.pick_side} · {leg.description}
+                            <li key={i}>
+                              <span className="font-semibold text-slate-200">{leg.label}</span>
+                              <span className="ml-2 text-xs text-slate-500">{leg.matchup}</span>
                             </li>
                           ))}
                         </ul>
