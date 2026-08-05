@@ -29,5 +29,5 @@ export async function loginAction(
   }
 
   await setSessionCookie({ sub: user.id, isAdmin: user.is_admin });
-  redirect("/leaderboard");
+  redirect("/lines");
 }
