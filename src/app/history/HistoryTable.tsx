@@ -14,7 +14,13 @@ type Row = {
 
 type SortKey = "displayName" | "endingBalance" | "netChange";
 
+const CURRENT_WEEK_SENTINEL = "current";
+
+// "current" sorts before any real ISO timestamp under a plain string
+// descending sort ('c' > '2' lexicographically), so it naturally lands
+// first in the dropdown without needing separate sort-key handling.
 function formatWeekEnding(iso: string): string {
+  if (iso === CURRENT_WEEK_SENTINEL) return "This week (in progress)";
   return new Intl.DateTimeFormat("en-US", {
     timeZone: "America/New_York",
     month: "short",
@@ -132,7 +138,7 @@ export default function HistoryTable({ rows }: { rows: Row[] }) {
               onSort={toggleSort}
             />
             <SortHeader
-              label="Net that week"
+              label={selectedWeek === CURRENT_WEEK_SENTINEL ? "Net so far" : "Net that week"}
               sortKeyName="netChange"
               activeKey={sortKey}
               sortDir={sortDir}

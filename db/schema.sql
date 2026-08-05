@@ -19,7 +19,7 @@ create table if not exists users (
   coin_balance numeric not null default 0,
   starting_balance numeric not null default 0, -- balance restored every weekly reset
   min_balance numeric not null default -200, -- floor: can't wager past this (managers can tune it per user)
-  agent text not null default 'OWN' check (agent in ('OWN', 'MJ', 'BO')), -- who recruited this user
+  agent text not null default 'OWN' check (agent in ('OWN', 'MJ')), -- who recruited this user
   free_play numeric not null default 0, -- separate spendable currency, doesn't reset weekly
   is_agent boolean not null default false, -- can view /users (own agent's recruits only)
   created_at timestamptz not null default now()

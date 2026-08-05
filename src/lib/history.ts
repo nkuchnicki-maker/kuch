@@ -36,7 +36,12 @@ export async function getWeeklyHistory(db: Pool): Promise<WeeklyHistoryRow[]> {
     display_name: string;
     coin_balance: string;
     created_at: Date;
-  }>("select id, username, display_name, coin_balance, created_at from users order by display_name");
+  }>(
+    // Admin/Test are utility accounts, not real players — same exclusion
+    // as the leaderboard, so they don't skew an agent's all-time net with
+    // dev/testing activity.
+    "select id, username, display_name, coin_balance, created_at from users where not is_admin and username <> 'Test' order by display_name",
+  );
 
   const { rows: txns } = await db.query<{
     user_id: string;
@@ -84,6 +89,32 @@ export async function getWeeklyHistory(db: Pool): Promise<WeeklyHistoryRow[]> {
   return history;
 }
 
+// The week currently in progress (since the last reset, or ever if none
+// yet) — used to be shown on the Leaderboard tab, which is now hidden from
+// nav, so History surfaces it too instead of only ever showing completed
+// past weeks. Reuses weekly_standings, which already has the same
+// Admin/Test/agent exclusions as the rest of this file.
+export const CURRENT_WEEK_SENTINEL = "current";
+
+export async function getCurrentWeekRows(db: Pool): Promise<WeeklyHistoryRow[]> {
+  const { rows } = await db.query<{
+    user_id: string;
+    username: string;
+    display_name: string;
+    coin_balance: string;
+    net_this_week: string;
+  }>("select user_id, username, display_name, coin_balance, net_this_week from weekly_standings");
+
+  return rows.map((r) => ({
+    userId: r.user_id,
+    username: r.username,
+    displayName: r.display_name,
+    weekEnding: CURRENT_WEEK_SENTINEL,
+    endingBalance: Number(r.coin_balance),
+    netChange: Number(r.net_this_week),
+  }));
+}
+
 export type AgentSummary = {
   agent: string;
   totalNet: number;
@@ -108,7 +139,9 @@ export async function getAgentSummaries(
     display_name: string;
     coin_balance: string;
     agent: string;
-  }>("select id, username, display_name, coin_balance, agent from users order by display_name");
+  }>(
+    "select id, username, display_name, coin_balance, agent from users where not is_admin and username <> 'Test' order by display_name",
+  );
 
   const netByUser = new Map<string, number>();
   for (const row of history) {

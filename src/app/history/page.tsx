@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { getWeeklyHistory, getAgentSummaries } from "@/lib/history";
+import { getWeeklyHistory, getCurrentWeekRows, getAgentSummaries } from "@/lib/history";
 import { formatMoney } from "@/lib/format";
 import HistoryTable from "./HistoryTable";
 import AgentBreakdown from "./AgentBreakdown";
@@ -18,7 +18,13 @@ export default async function HistoryPage() {
     );
   }
 
-  const rows = await getWeeklyHistory(db);
+  const [pastRows, currentRows] = await Promise.all([
+    getWeeklyHistory(db),
+    getCurrentWeekRows(db),
+  ]);
+  const rows = [...currentRows, ...pastRows];
+  // Includes this week's net-so-far, not just completed weeks — otherwise
+  // "all-time" would understate whatever's happened since the last reset.
   const agentSummaries = await getAgentSummaries(db, rows);
   const grandTotal = agentSummaries.reduce((sum, s) => sum + s.totalNet, 0);
 
@@ -28,15 +34,11 @@ export default async function HistoryPage() {
         <div>
           <h1 className="text-2xl font-bold text-emerald-400">History</h1>
           <p className="mt-2 max-w-2xl text-sm text-slate-400">
-            Every user&apos;s balance at the end of each past week (right
-            before that week&apos;s reset), plus an all-time breakdown by
-            recruiting agent. Pick a week from the dropdown below (defaults
-            to the most recent) and click a column to sort within it. The
-            week still in progress is on the{" "}
-            <a href="/leaderboard" className="text-emerald-400 hover:underline">
-              Leaderboard
-            </a>{" "}
-            instead.
+            Every user&apos;s balance for the current week in progress, plus
+            each past week (right before that week&apos;s reset), and an
+            all-time breakdown by recruiting agent. Pick a week from the
+            dropdown below (defaults to the current one) and click a column
+            to sort within it.
           </p>
         </div>
         <div className="rounded-xl border border-slate-800 bg-slate-900 px-6 py-4 text-right">
