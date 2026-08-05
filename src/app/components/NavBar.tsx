@@ -45,6 +45,11 @@ export default async function NavBar() {
             </Link>
           )}
           {(user.is_admin || user.is_agent) && (
+            <Link href="/bets" className={linkClass}>
+              🎫 Bets
+            </Link>
+          )}
+          {(user.is_admin || user.is_agent) && (
             <Link href="/history" className={linkClass}>
               📜 History
             </Link>

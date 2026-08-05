@@ -75,6 +75,7 @@ export async function cancelPickAction(pickId: string) {
   revalidatePath("/admin");
   revalidatePath("/leaderboard");
   revalidatePath("/picks");
+  revalidatePath("/bets");
 }
 
 // Cancels a whole pending parlay (all its legs) and refunds the wager —
@@ -138,6 +139,7 @@ export async function cancelParlayAction(parlayId: string) {
   revalidatePath("/admin");
   revalidatePath("/leaderboard");
   revalidatePath("/picks");
+  revalidatePath("/bets");
 }
 
 // Passwords are stored as one-way bcrypt hashes — there is no "current
