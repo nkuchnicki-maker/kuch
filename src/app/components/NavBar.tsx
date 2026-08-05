@@ -17,14 +17,11 @@ export default async function NavBar() {
       <div className="flex items-center justify-between">
         <div className="flex flex-wrap items-center gap-1">
           <Link
-            href="/leaderboard"
+            href="/lines"
             className="mr-4 flex items-center gap-2 text-base font-bold text-emerald-400"
           >
             <Logo size={22} />
             Bettor Edge
-          </Link>
-          <Link href="/leaderboard" className={linkClass}>
-            🏆 Leaderboard
           </Link>
           {!agentOnly && (
             <>
