@@ -45,6 +45,7 @@ export type CurrentUser = {
   display_name: string;
   is_admin: boolean;
   is_agent: boolean;
+  can_create_agents: boolean;
   agent: string;
   coin_balance: string;
   free_play: string;
@@ -61,7 +62,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   if (!session) return null;
 
   const { rows } = await db.query<CurrentUser>(
-    `select id, email, username, display_name, is_admin, is_agent, agent, coin_balance, free_play
+    `select id, email, username, display_name, is_admin, is_agent, can_create_agents, agent, coin_balance, free_play
      from users where id = $1`,
     [session.sub],
   );

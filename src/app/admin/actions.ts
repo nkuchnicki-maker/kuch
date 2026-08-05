@@ -26,11 +26,18 @@ export async function createUserAction(formData: FormData) {
       ? Number(minBalanceField)
       : -200;
 
-  // Non-admin agents can only recruit under their own agent code and can't
-  // grant agent access to a new account — both stay admin-only decisions,
-  // enforced here regardless of what a request might submit for those fields.
+  // Non-admin agents can only recruit under their own agent code — stays an
+  // admin-only decision, enforced here regardless of what a request might
+  // submit for that field.
   const agent = viewer.is_admin ? String(formData.get("agent")) : viewer.agent;
-  const isAgentAccount = viewer.is_admin && formData.get("isAgent") === "true";
+
+  // Admins make full agents; a full agent (can_create_agents) can recruit
+  // subagents — same is_agent capabilities everywhere else in the app, but
+  // a subagent's own can_create_agents is always false, so they can't chain
+  // further agent/subagent creation themselves.
+  const canGrantAgent = viewer.is_admin || viewer.can_create_agents;
+  const isAgentAccount = canGrantAgent && formData.get("isAgent") === "true";
+  const canCreateAgents = viewer.is_admin;
 
   if (!isAgent(agent)) {
     throw new Error("Pick a valid agent");
@@ -43,9 +50,22 @@ export async function createUserAction(formData: FormData) {
 
   try {
     await db.query(
-      `insert into users (email, password_hash, username, display_name, coin_balance, starting_balance, min_balance, agent, is_agent)
-       values ($1, $2, $3, $4, $5, $5, $6, $7, $8)`,
-      [email, passwordHash, username, displayName, startingCoins, minBalance, agent, isAgentAccount],
+      `insert into users (
+         email, password_hash, username, display_name, coin_balance, starting_balance,
+         min_balance, agent, is_agent, can_create_agents
+       )
+       values ($1, $2, $3, $4, $5, $5, $6, $7, $8, $9)`,
+      [
+        email,
+        passwordHash,
+        username,
+        displayName,
+        startingCoins,
+        minBalance,
+        agent,
+        isAgentAccount,
+        isAgentAccount ? canCreateAgents : true,
+      ],
     );
   } catch (err) {
     const message = (err as { code?: string; message: string }).code === "23505"

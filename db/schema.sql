@@ -22,6 +22,7 @@ create table if not exists users (
   agent text not null default 'OWN' check (agent in ('OWN', 'MJ')), -- who recruited this user
   free_play numeric not null default 0, -- separate spendable currency, doesn't reset weekly
   is_agent boolean not null default false, -- can view /users (own agent's recruits only)
+  can_create_agents boolean not null default true, -- false = subagent: full agent rights except recruiting more agents
   created_at timestamptz not null default now()
 );
 

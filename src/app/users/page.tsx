@@ -145,6 +145,14 @@ export default async function UsersPage() {
             className="rounded-lg bg-emerald-500 px-4 py-2 font-semibold text-slate-950 hover:bg-emerald-400">
             Create user
           </button>
+          {(viewer.is_admin || viewer.can_create_agents) && (
+            <label className="flex items-center gap-2 text-sm text-slate-300 sm:col-span-5">
+              <input type="checkbox" name="isAgent" value="true" className="accent-emerald-500" />
+              {viewer.is_admin
+                ? "Is agent (can view Users page)"
+                : "Make this a subagent (same permissions as you, but can't recruit more agents)"}
+            </label>
+          )}
         </form>
         <p className="mt-2 text-xs text-slate-500">
           New players start at a $0 balance with a -$200 min balance (tune
