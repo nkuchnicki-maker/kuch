@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { formatMoney } from "@/lib/format";
 import { AGENTS } from "@/lib/agents";
-import { createUserAction, setMinBalanceAction } from "../admin/actions";
+import { createUserAction, setMinBalanceAction, adjustCoinsAction } from "../admin/actions";
 import {
   adjustFreePlayAction,
   cancelPickAction,
@@ -176,6 +176,7 @@ export default async function UsersPage() {
             {users.length ? (
               users.map((u, i) => {
                 const canAdjustFreePlay = viewer.is_admin;
+                const canAdjustBalance = viewer.is_admin;
                 const canAdjustMinBalance = viewer.is_admin || u.agent === viewer.agent;
                 const canManageBets = viewer.is_admin || u.agent === viewer.agent;
                 const pending = pendingByUser.get(u.id) ?? [];
@@ -241,8 +242,28 @@ export default async function UsersPage() {
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-right font-mono tabular-nums text-emerald-400">
-                      {formatMoney(u.coin_balance)}
+                    <td className="px-4 py-3 text-right">
+                      <div className="font-mono tabular-nums text-emerald-400">
+                        {formatMoney(u.coin_balance)}
+                      </div>
+                      {canAdjustBalance && (
+                        <form action={adjustCoinsAction} className="mt-1 flex justify-end gap-1">
+                          <input type="hidden" name="userId" value={u.id} />
+                          <input
+                            name="amount"
+                            type="number"
+                            placeholder="+/- $"
+                            required
+                            className="w-24 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs"
+                          />
+                          <button
+                            type="submit"
+                            className="rounded bg-slate-700 px-2 py-0.5 text-xs hover:bg-slate-600"
+                          >
+                            Apply
+                          </button>
+                        </form>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="font-mono tabular-nums text-red-400">

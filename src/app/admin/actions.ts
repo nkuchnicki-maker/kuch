@@ -120,6 +120,8 @@ export async function adjustCoinsAction(formData: FormData) {
 
   revalidatePath("/admin");
   revalidatePath("/leaderboard");
+  revalidatePath("/users");
+  revalidatePath("/history");
 }
 
 export async function setMinBalanceAction(formData: FormData) {
