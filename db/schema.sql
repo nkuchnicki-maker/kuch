@@ -94,6 +94,7 @@ create table if not exists picks (
   spread_at_pick numeric, -- frozen at placement so later line movement can't re-grade this
   total_at_pick numeric,
   status text not null default 'pending', -- pending | win | loss | push | cancelled
+  stake_debited boolean not null default true, -- false = stake stays in balance until it loses (see settle.ts)
   settled_at timestamptz,
   created_at timestamptz not null default now()
 );
@@ -116,6 +117,7 @@ create table if not exists parlays (
   potential_payout numeric not null, -- payout if every leg wins, shown at placement
   is_free_play boolean not null default false, -- paid with free play, not coin_balance
   status text not null default 'pending', -- pending | win | loss | push | cancelled
+  stake_debited boolean not null default true, -- false = stake stays in balance until it loses (see settle.ts)
   settled_at timestamptz,
   created_at timestamptz not null default now()
 );

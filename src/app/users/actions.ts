@@ -31,10 +31,12 @@ export async function cancelPickAction(pickId: string) {
       user_id: string;
       wager: string;
       is_free_play: boolean;
+      stake_debited: boolean;
       status: string;
-    }>("select user_id, wager, is_free_play, status from picks where id = $1 for update", [
-      pickId,
-    ]);
+    }>(
+      "select user_id, wager, is_free_play, stake_debited, status from picks where id = $1 for update",
+      [pickId],
+    );
     const pick = rows[0];
     if (!pick) throw new Error("Pick not found");
     if (pick.status !== "pending") throw new Error("Only pending picks can be cancelled");
@@ -51,7 +53,8 @@ export async function cancelPickAction(pickId: string) {
         pick.wager,
         pick.user_id,
       ]);
-    } else {
+    } else if (pick.stake_debited) {
+      // Old model: the stake was already taken at placement, so give it back.
       await client.query(
         `insert into coin_transactions (user_id, amount, reason, related_pick_id)
          values ($1, $2, 'pick_refund', $3)`,
@@ -62,6 +65,7 @@ export async function cancelPickAction(pickId: string) {
         pick.user_id,
       ]);
     }
+    // else: stake was never taken (new model) — nothing to refund.
 
     await client.query("commit");
   } catch (err) {
@@ -91,10 +95,12 @@ export async function cancelParlayAction(parlayId: string) {
       user_id: string;
       wager: string;
       is_free_play: boolean;
+      stake_debited: boolean;
       status: string;
-    }>("select user_id, wager, is_free_play, status from parlays where id = $1 for update", [
-      parlayId,
-    ]);
+    }>(
+      "select user_id, wager, is_free_play, stake_debited, status from parlays where id = $1 for update",
+      [parlayId],
+    );
     const parlay = rows[0];
     if (!parlay) throw new Error("Parlay not found");
     if (parlay.status !== "pending") throw new Error("Only pending parlays can be cancelled");
@@ -115,7 +121,8 @@ export async function cancelParlayAction(parlayId: string) {
         parlay.wager,
         parlay.user_id,
       ]);
-    } else {
+    } else if (parlay.stake_debited) {
+      // Old model: the stake was already taken at placement, so give it back.
       await client.query(
         `insert into coin_transactions (user_id, amount, reason, related_parlay_id)
          values ($1, $2, 'pick_refund', $3)`,
@@ -126,6 +133,7 @@ export async function cancelParlayAction(parlayId: string) {
         parlay.user_id,
       ]);
     }
+    // else: stake was never taken (new model) — nothing to refund.
 
     await client.query("commit");
   } catch (err) {

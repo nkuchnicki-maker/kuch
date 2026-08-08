@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { requireUser, blockIfAgentOnly } from "@/lib/auth";
 import { americanToDecimal, payoutForOdds, STANDARD_JUICE } from "@/lib/odds";
 import {
-  debitForWager,
+  reserveWager,
   debitFreePlay,
   enforceBetRateLimit,
   hasOpenPickOnGame,
@@ -103,20 +103,22 @@ export async function placePickAction(formData: FormData) {
     if (isFreePlay) {
       await debitFreePlay(client, user.id, wager);
     } else {
-      await debitForWager(client, user.id, wager);
+      // Real-money stake isn't taken now — reserveWager just checks it's
+      // affordable; the stake is only actually debited if this pick loses
+      // (see settle.ts's debitOnLoss), and a win pays out profit only.
+      await reserveWager(client, user.id, wager);
     }
 
     if (await hasOpenPickOnGame(client, user.id, gameId)) {
       throw new Error("Bet rejected: you already have an open pick on this game");
     }
 
-    const { rows: pickRows } = await client.query<{ id: string }>(
+    await client.query(
       `insert into picks (
          user_id, game_id, line_id, pick_type, pick_side, wager, potential_payout,
-         is_free_play, spread_at_pick, total_at_pick
+         is_free_play, spread_at_pick, total_at_pick, stake_debited
        )
-       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-       returning id`,
+       values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
       [
         user.id,
         gameId,
@@ -128,19 +130,9 @@ export async function placePickAction(formData: FormData) {
         isFreePlay,
         spreadAtPick,
         totalAtPick,
+        isFreePlay, // free play is still debited immediately; real money isn't
       ],
     );
-
-    // Free-play wagers don't touch coin_balance, so no coin_transactions
-    // entry — that table's amounts must sum exactly to coin_balance changes
-    // (weeklyReset/history reconstruct balances from it).
-    if (!isFreePlay) {
-      await client.query(
-        `insert into coin_transactions (user_id, amount, reason, related_pick_id)
-         values ($1, $2, 'pick_wager', $3)`,
-        [user.id, -wager, pickRows[0].id],
-      );
-    }
 
     await client.query("commit");
   } catch (err) {
@@ -297,7 +289,10 @@ export async function placeParlayAction(
     if (isFreePlay) {
       await debitFreePlay(client, user.id, wager);
     } else {
-      await debitForWager(client, user.id, wager);
+      // Real-money stake isn't taken now — reserveWager just checks it's
+      // affordable; the stake is only actually debited if this parlay
+      // loses (see settle.ts's debitOnLoss), and a win pays out profit only.
+      await reserveWager(client, user.id, wager);
     }
 
     for (const leg of resolvedLegs) {
@@ -307,10 +302,10 @@ export async function placeParlayAction(
     }
 
     const { rows: parlayRows } = await client.query<{ id: string }>(
-      `insert into parlays (user_id, wager, potential_payout, is_free_play)
-       values ($1, $2, $3, $4)
+      `insert into parlays (user_id, wager, potential_payout, is_free_play, stake_debited)
+       values ($1, $2, $3, $4, $5)
        returning id`,
-      [user.id, wager, potentialPayout, isFreePlay],
+      [user.id, wager, potentialPayout, isFreePlay, isFreePlay],
     );
     const parlayId = parlayRows[0].id;
 
@@ -331,14 +326,6 @@ export async function placeParlayAction(
           leg.spreadAtPick,
           leg.totalAtPick,
         ],
-      );
-    }
-
-    if (!isFreePlay) {
-      await client.query(
-        `insert into coin_transactions (user_id, amount, reason, related_parlay_id)
-         values ($1, $2, 'pick_wager', $3)`,
-        [user.id, -wager, parlayId],
       );
     }
 
@@ -400,27 +387,21 @@ export async function placeOutrightPickAction(formData: FormData) {
     if (isFreePlay) {
       await debitFreePlay(client, user.id, wager);
     } else {
-      await debitForWager(client, user.id, wager);
+      // Real-money stake isn't taken now — reserveWager just checks it's
+      // affordable; the stake is only actually debited if this pick loses
+      // (see settle.ts's debitOnLoss), and a win pays out profit only.
+      await reserveWager(client, user.id, wager);
     }
 
     if (await hasOpenPickOnGame(client, user.id, gameId)) {
       throw new Error("Bet rejected: you already have an open pick on this event");
     }
 
-    const { rows: pickRows } = await client.query<{ id: string }>(
-      `insert into picks (user_id, game_id, line_id, pick_type, pick_side, wager, potential_payout, is_free_play)
-       values ($1, $2, $3, 'outright', $4, $5, $6, $7)
-       returning id`,
-      [user.id, gameId, lineId, participantName, wager, potentialPayout, isFreePlay],
+    await client.query(
+      `insert into picks (user_id, game_id, line_id, pick_type, pick_side, wager, potential_payout, is_free_play, stake_debited)
+       values ($1, $2, $3, 'outright', $4, $5, $6, $7, $8)`,
+      [user.id, gameId, lineId, participantName, wager, potentialPayout, isFreePlay, isFreePlay],
     );
-
-    if (!isFreePlay) {
-      await client.query(
-        `insert into coin_transactions (user_id, amount, reason, related_pick_id)
-         values ($1, $2, 'pick_wager', $3)`,
-        [user.id, -wager, pickRows[0].id],
-      );
-    }
 
     await client.query("commit");
   } catch (err) {

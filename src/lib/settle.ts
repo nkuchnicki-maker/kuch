@@ -65,6 +65,7 @@ async function creditOutcome(
     wager: string;
     potential_payout: string;
     is_free_play: boolean;
+    stake_debited: boolean;
   },
   outcome: "win" | "push",
   kind: "pick" | "parlay",
@@ -97,6 +98,27 @@ async function creditOutcome(
     return;
   }
 
+  // stake_debited=false means the stake was never taken out of coin_balance
+  // at placement (see reserveWager in wager.ts) — so a push needs no
+  // refund (nothing to give back) and a win pays out profit only (the
+  // stake is still sitting in the balance, untouched). stake_debited=true
+  // rows are the old model, grandfathered in: still get the full amount.
+  if (!entity.stake_debited) {
+    if (outcome === "push") return;
+    const profit = Number(entity.potential_payout) - Number(entity.wager);
+    if (profit <= 0) return;
+    await db.query(
+      `insert into coin_transactions (user_id, amount, reason, ${relatedColumn})
+       values ($1, $2, 'pick_payout', $3)`,
+      [entity.user_id, profit, entity.id],
+    );
+    await db.query("update users set coin_balance = coin_balance + $1 where id = $2", [
+      profit,
+      entity.user_id,
+    ]);
+    return;
+  }
+
   const amount = outcome === "win" ? entity.potential_payout : entity.wager;
   const reason = outcome === "win" ? "pick_payout" : "pick_refund";
 
@@ -111,6 +133,29 @@ async function creditOutcome(
   );
 }
 
+// Takes the stake at settlement time for a pick/parlay that lost without
+// ever having it debited at placement (see reserveWager) — a no-op for
+// free play (its stake was already spent from free_play at placement, per
+// debitFreePlay) or for stake_debited=true rows (old model: already gone).
+async function debitOnLoss(
+  db: Pool,
+  entity: { id: string; user_id: string; wager: string; is_free_play: boolean; stake_debited: boolean },
+  kind: "pick" | "parlay",
+) {
+  if (entity.is_free_play || entity.stake_debited) return;
+
+  const relatedColumn = kind === "pick" ? "related_pick_id" : "related_parlay_id";
+  await db.query(
+    `insert into coin_transactions (user_id, amount, reason, ${relatedColumn})
+     values ($1, $2, 'pick_loss', $3)`,
+    [entity.user_id, -Number(entity.wager), entity.id],
+  );
+  await db.query("update users set coin_balance = coin_balance - $1 where id = $2", [
+    Number(entity.wager),
+    entity.user_id,
+  ]);
+}
+
 // If every leg of a parlay has now been graded (win/loss/push), compute
 // its final outcome and credit/debit the user. No-ops if legs are still
 // pending (e.g. other legs are on games that haven't finished yet) or if
@@ -122,7 +167,11 @@ async function trySettleParlay(db: Pool, parlayId: string) {
     wager: string;
     status: string;
     is_free_play: boolean;
-  }>("select id, user_id, wager, status, is_free_play from parlays where id = $1", [parlayId]);
+    stake_debited: boolean;
+  }>(
+    "select id, user_id, wager, status, is_free_play, stake_debited from parlays where id = $1",
+    [parlayId],
+  );
   const parlay = parlays[0];
   if (!parlay || parlay.status !== "pending") return;
 
@@ -137,7 +186,8 @@ async function trySettleParlay(db: Pool, parlayId: string) {
       "update parlays set status = 'loss', settled_at = now() where id = $1",
       [parlayId],
     );
-    return; // wager was already debited at placement
+    await debitOnLoss(db, parlay, "parlay");
+    return;
   }
 
   if (legs.every((l) => l.status === "push")) {
@@ -276,12 +326,13 @@ export async function settlePicksForGame(
     wager: string;
     potential_payout: string;
     is_free_play: boolean;
+    stake_debited: boolean;
     spread: string | null;
     total: string | null;
     moneyline_draw: number | null;
   }>(
     `select p.id, p.user_id, p.pick_type, p.pick_side, p.wager, p.potential_payout,
-            p.is_free_play,
+            p.is_free_play, p.stake_debited,
             coalesce(p.spread_at_pick, l.spread) as spread,
             coalesce(p.total_at_pick, l.total) as total,
             l.moneyline_draw
@@ -310,8 +361,9 @@ export async function settlePicksForGame(
 
     if (outcome === "win" || outcome === "push") {
       await creditOutcome(db, pick, outcome, "pick");
+    } else {
+      await debitOnLoss(db, pick, "pick");
     }
-    // loss: wager was already debited at pick time, nothing further to do
   }
 
   await settleMatchupParlayLegs(db, gameId, homeScore, awayScore);
@@ -333,8 +385,9 @@ export async function voidGame(db: Pool, gameId: string): Promise<void> {
     wager: string;
     potential_payout: string;
     is_free_play: boolean;
+    stake_debited: boolean;
   }>(
-    `select id, user_id, wager, potential_payout, is_free_play
+    `select id, user_id, wager, potential_payout, is_free_play, stake_debited
      from picks where game_id = $1 and status = 'pending'`,
     [gameId],
   );
@@ -381,8 +434,9 @@ export async function settleOutrightEvent(
     wager: string;
     potential_payout: string;
     is_free_play: boolean;
+    stake_debited: boolean;
   }>(
-    `select id, user_id, pick_side, wager, potential_payout, is_free_play
+    `select id, user_id, pick_side, wager, potential_payout, is_free_play, stake_debited
      from picks
      where game_id = $1 and status = 'pending' and pick_type = 'outright'`,
     [gameId],
@@ -398,6 +452,8 @@ export async function settleOutrightEvent(
 
     if (outcome === "win") {
       await creditOutcome(db, pick, outcome, "pick");
+    } else {
+      await debitOnLoss(db, pick, "pick");
     }
   }
 
