@@ -6,12 +6,17 @@ const RESET_TIMEZONE = "America/New_York";
 // Uses Intl's IANA timezone support rather than a fixed UTC offset, so this
 // stays correct across the EST/EDT switch automatically (no hardcoded
 // UTC-4/UTC-5 math to get wrong).
-function isSundayInTimeZone(now: Date): boolean {
+//
+// Checks for Monday, not Sunday — the reset is meant to land "going into
+// Sunday night" (i.e. right as Sunday ends and Monday begins), not at the
+// start of Sunday. The cron in vercel.json fires early Monday morning ET
+// to match.
+function isMondayInTimeZone(now: Date): boolean {
   const weekday = new Intl.DateTimeFormat("en-US", {
     timeZone: RESET_TIMEZONE,
     weekday: "short",
   }).format(now);
-  return weekday === "Sun";
+  return weekday === "Mon";
 }
 
 // yyyy-mm-dd in the target timezone — en-CA formats that way directly.
@@ -84,16 +89,17 @@ async function resetAllBalances(db: Pool): Promise<number> {
 }
 
 // Resets every user's coin_balance back to their starting_balance once per
-// week, at the first check that lands on a Sunday (America/New_York) after
-// the previous reset. Idempotent — safe to call as often as you like; it
-// only actually resets once per Sunday, determined by the most recent
-// 'weekly_reset' coin_transaction across all users. This is the automated
-// path (see /api/reset-week and .github/workflows/reset-week.yml).
+// week, at the first check that lands on a Monday (America/New_York) after
+// the previous reset — i.e. going into Sunday night, not the start of
+// Sunday. Idempotent — safe to call as often as you like; it only actually
+// resets once per Monday, determined by the most recent 'weekly_reset'
+// coin_transaction across all users. This is the automated path (see
+// /api/reset-week and .github/workflows/reset-week.yml).
 export async function runWeeklyResetIfDue(db: Pool): Promise<WeeklyResetResult> {
   const now = new Date();
 
-  if (!isSundayInTimeZone(now)) {
-    return { ran: false, reason: "not Sunday in America/New_York" };
+  if (!isMondayInTimeZone(now)) {
+    return { ran: false, reason: "not Monday in America/New_York" };
   }
 
   const todayEt = calendarDateInTimeZone(now);

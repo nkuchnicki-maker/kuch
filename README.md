@@ -24,7 +24,7 @@ rights and weekly leaderboards.
   legs must win for it to pay out, at the combined odds. A parlay only
   settles once every one of its legs' games has finished, even if that
   takes days.
-- Every Sunday at midnight Eastern time, everyone's balance resets to their
+- Every week, going into Sunday night (America/New_York), everyone's balance resets to their
   starting amount (everyone starts at $0 by default) and the leaderboard
   starts fresh for a new week (see "Weekly reset" below). Admin also has a
   manual "Reset week now" button for testing or an early reset.
@@ -478,19 +478,19 @@ hint; only the server-side check is actually load-bearing.
 ## Weekly reset
 
 Every user's `coin_balance` snaps back to their `starting_balance` (set when
-they were created in Admin) at the first check after Sunday midnight
-**America/New_York** — not a fixed UTC offset, so this stays correct
-automatically across the EST/EDT switch twice a year (see
+they were created in Admin) at the first check after the Sunday-night/Monday
+boundary in **America/New_York** — not a fixed UTC offset, so this stays
+correct automatically across the EST/EDT switch twice a year (see
 [`src/lib/weeklyReset.ts`](src/lib/weeklyReset.ts)).
 
-This is wired to [`.github/workflows/reset-week.yml`](.github/workflows/reset-week.yml),
-polling `/api/reset-week` every 15 minutes, every day. That sounds
-wasteful, but the route is a single cheap database check the rest of the
-week — no external API calls at all — so polling it constantly costs
-nothing. It only actually performs the reset once, on the first poll that
-lands on a Sunday (checked via a `weekly_reset` marker in
+This is wired to Vercel Cron (see [`vercel.json`](vercel.json)), which hits
+`/api/reset-week` early Monday morning ET. The route is a single cheap
+database check the rest of the week — no external API calls at all — so
+polling it costs nothing. It only actually performs the reset once, on the
+first check that lands on a Monday (checked via a `weekly_reset` marker in
 `coin_transactions`, so it's safe to poll as often as you want without
-double-resetting).
+double-resetting). [`.github/workflows/reset-week.yml`](.github/workflows/reset-week.yml)
+hits the same route but is manual-only now, kept around for debugging.
 
 Nothing about picks, parlays, or their history gets deleted — every
 transaction ever recorded stays in `coin_transactions` forever, including
