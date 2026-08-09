@@ -27,27 +27,6 @@ export async function enforceBetRateLimit(
   }
 }
 
-// True if the user already has a pending straight pick or parlay leg on
-// this game — blocks stacking correlated bets (e.g. spread + moneyline on
-// the same side) across separate tickets, not just within one parlay.
-export async function hasOpenPickOnGame(
-  db: Pool | PoolClient,
-  userId: string,
-  gameId: string,
-): Promise<boolean> {
-  const { rows } = await db.query<{ exists: boolean }>(
-    `select exists(
-       select 1 from picks where user_id = $1 and game_id = $2 and status = 'pending'
-       union all
-       select 1 from parlay_legs pl
-       join parlays p on p.id = pl.parlay_id
-       where p.user_id = $1 and pl.game_id = $2 and pl.status = 'pending'
-     ) as exists`,
-    [userId, gameId],
-  );
-  return rows[0]?.exists ?? false;
-}
-
 // Debits a wager from a user's balance, enforcing their per-user min_balance
 // floor instead of a hard floor of $0 — balances can go negative from a
 // losing pick, but not past the limit a manager set for that person. Must

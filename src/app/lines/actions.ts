@@ -4,12 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireUser, blockIfAgentOnly } from "@/lib/auth";
 import { americanToDecimal, payoutForOdds, STANDARD_JUICE } from "@/lib/odds";
-import {
-  reserveWager,
-  debitFreePlay,
-  enforceBetRateLimit,
-  hasOpenPickOnGame,
-} from "@/lib/wager";
+import { reserveWager, debitFreePlay, enforceBetRateLimit } from "@/lib/wager";
 import { fetchLineSnapshot, holdForLiveBet, type LineSnapshot } from "@/lib/marketLock";
 import { refreshLiveGameIfNeeded } from "@/lib/sync";
 
@@ -50,12 +45,6 @@ export async function placePickAction(formData: FormData) {
     throw new Error("Bet rejected: this game already started — check Live Sports for the current line");
   }
   const gameStatus = game.status;
-
-  // Fail fast before wasting a live bet's 10-second hold on a bet that's
-  // doomed anyway — re-checked again inside the transaction below.
-  if (await hasOpenPickOnGame(db, user.id, gameId)) {
-    throw new Error("Bet rejected: you already have an open pick on this game");
-  }
 
   const line = await fetchLineSnapshot(db, lineId);
   if (!line) throw new Error("Bet rejected: line not found");
@@ -107,10 +96,6 @@ export async function placePickAction(formData: FormData) {
       // affordable; the stake is only actually debited if this pick loses
       // (see settle.ts's debitOnLoss), and a win pays out profit only.
       await reserveWager(client, user.id, wager);
-    }
-
-    if (await hasOpenPickOnGame(client, user.id, gameId)) {
-      throw new Error("Bet rejected: you already have an open pick on this game");
     }
 
     await client.query(
@@ -200,10 +185,6 @@ export async function placeParlayAction(
       throw new Error("Bet rejected: one of your picks already started — check Live Sports for the current line");
     }
     const gameStatus = legGame.status;
-
-    if (await hasOpenPickOnGame(db, user.id, leg.gameId)) {
-      throw new Error("Bet rejected: you already have an open pick on one of these games");
-    }
 
     let odds: number | null;
     let snapshot: LineSnapshot;
@@ -295,12 +276,6 @@ export async function placeParlayAction(
       await reserveWager(client, user.id, wager);
     }
 
-    for (const leg of resolvedLegs) {
-      if (await hasOpenPickOnGame(client, user.id, leg.gameId)) {
-        throw new Error("Bet rejected: you already have an open pick on one of these games");
-      }
-    }
-
     const { rows: parlayRows } = await client.query<{ id: string }>(
       `insert into parlays (user_id, wager, potential_payout, is_free_play, stake_debited)
        values ($1, $2, $3, $4, $5)
@@ -366,10 +341,6 @@ export async function placeOutrightPickAction(formData: FormData) {
     throw new Error("Bet rejected: this event is no longer open for picks");
   }
 
-  if (await hasOpenPickOnGame(db, user.id, gameId)) {
-    throw new Error("Bet rejected: you already have an open pick on this event");
-  }
-
   const { rows: lineRows } = await db.query<{
     outrights: { name: string; odds: number }[] | null;
   }>("select outrights from lines where id = $1", [lineId]);
@@ -391,10 +362,6 @@ export async function placeOutrightPickAction(formData: FormData) {
       // affordable; the stake is only actually debited if this pick loses
       // (see settle.ts's debitOnLoss), and a win pays out profit only.
       await reserveWager(client, user.id, wager);
-    }
-
-    if (await hasOpenPickOnGame(client, user.id, gameId)) {
-      throw new Error("Bet rejected: you already have an open pick on this event");
     }
 
     await client.query(
