@@ -4,7 +4,7 @@ import { useState } from "react";
 import { placePickAction } from "./actions";
 import { useBetSlip } from "./BetSlipContext";
 import { formatMoney } from "@/lib/format";
-import { payoutForOdds } from "@/lib/odds";
+import { profitForOdds } from "@/lib/odds";
 import BetStatusModal, { type BetPhase } from "./BetStatusModal";
 
 export default function PickForm({
@@ -105,7 +105,7 @@ export default function PickForm({
 
         <div className="mb-2 space-y-1">
           {options.map((opt) => {
-            const toWin = hasWager ? payoutForOdds(opt.odds, wagerNum) : null;
+            const toWin = hasWager ? profitForOdds(opt.odds, wagerNum) : null;
             return (
               <div
                 key={opt.value}

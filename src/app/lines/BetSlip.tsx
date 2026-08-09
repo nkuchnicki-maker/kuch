@@ -21,7 +21,10 @@ export default function BetSlip({ freePlayBalance = 0 }: { freePlayBalance?: num
     1,
   );
   const wagerNum = Number(wager) || 0;
-  const potentialPayout = wagerNum > 0 ? wagerNum * combinedDecimal : 0;
+  // Profit only, not total payout — the stake stays in the balance and is
+  // only taken if the parlay loses (see settle.ts), so a win only ever
+  // adds this amount, not the stake back on top of itself.
+  const profit = wagerNum > 0 ? wagerNum * (combinedDecimal - 1) : 0;
 
   function handleSubmit() {
     setError(null);
@@ -126,7 +129,7 @@ export default function BetSlip({ freePlayBalance = 0 }: { freePlayBalance?: num
             <div className="mb-2 text-xs text-slate-400">
               {formatMoney(wagerNum)} to win{" "}
               <span className="font-semibold text-emerald-400">
-                {formatMoney(potentialPayout)}
+                {formatMoney(profit)}
               </span>
             </div>
           )}

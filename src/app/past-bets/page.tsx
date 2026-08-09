@@ -90,7 +90,9 @@ export default async function PastBetsPage() {
         kind: "parlay",
         displayName: row.display_name,
         wager: Number(row.wager),
-        potentialPayout: Number(row.potential_payout),
+        // Profit only, not total payout — matches what a win actually
+        // credits under the deferred-stake-debit model (see settle.ts).
+        potentialPayout: Number(row.potential_payout) - Number(row.wager),
         status: row.parlay_status,
         createdAt: row.created_at,
         legs: [],
@@ -117,7 +119,9 @@ export default async function PastBetsPage() {
         kind: "pick",
         displayName: p.display_name,
         wager: Number(p.wager),
-        potentialPayout: Number(p.potential_payout),
+        // Profit only, not total payout — matches what a win actually
+        // credits under the deferred-stake-debit model (see settle.ts).
+        potentialPayout: Number(p.potential_payout) - Number(p.wager),
         status: p.status,
         createdAt: p.created_at,
         leg: {

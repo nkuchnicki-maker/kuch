@@ -168,7 +168,7 @@ export default async function LeaderboardPage() {
                 <div className="text-slate-400">{item.description}</div>
                 <div className="text-xs text-slate-500">
                   Wagered {formatMoney(item.wager)} to win{" "}
-                  {formatMoney(item.potential_payout)}
+                  {formatMoney(Number(item.potential_payout) - Number(item.wager))}
                 </div>
               </li>
             ))}

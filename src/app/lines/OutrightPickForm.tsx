@@ -4,7 +4,7 @@ import { useState } from "react";
 import { placeOutrightPickAction } from "./actions";
 import { useBetSlip } from "./BetSlipContext";
 import { formatMoney } from "@/lib/format";
-import { payoutForOdds } from "@/lib/odds";
+import { profitForOdds } from "@/lib/odds";
 import BetStatusModal, { type BetPhase } from "./BetStatusModal";
 
 export default function OutrightPickForm({
@@ -31,7 +31,7 @@ export default function OutrightPickForm({
   const wagerNum = Number(wager);
   const toWin =
     selectedParticipant && wagerNum > 0
-      ? payoutForOdds(selectedParticipant.odds, wagerNum)
+      ? profitForOdds(selectedParticipant.odds, wagerNum)
       : null;
 
   async function handleSubmit(e: React.FormEvent) {

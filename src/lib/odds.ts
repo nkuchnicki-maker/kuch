@@ -4,9 +4,20 @@
 export const STANDARD_JUICE = -110;
 
 // Returns the TOTAL amount returned to the user if they win, wager included.
+// Still the right figure for anything that pays out the full total on a
+// win — casino games, and settling an old stake_debited=true pick/parlay.
 export function payoutForOdds(odds: number, wager: number): number {
   if (odds > 0) return wager + wager * (odds / 100);
   return wager + wager * (100 / Math.abs(odds));
+}
+
+// Profit only (payout minus stake) — what a sports pick/parlay actually
+// pays out under the deferred-stake-debit model (see settle.ts): the
+// stake was never removed from the balance, so a win only ever adds the
+// profit, not the stake back on top of itself.
+export function profitForOdds(odds: number, wager: number): number {
+  if (odds > 0) return wager * (odds / 100);
+  return wager * (100 / Math.abs(odds));
 }
 
 // Decimal odds = payout multiple per $1 wagered (e.g. -110 -> ~1.909,

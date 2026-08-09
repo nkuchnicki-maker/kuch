@@ -183,7 +183,7 @@ export default async function MyPicksPage() {
                   </td>
                   <td className="font-mono">{formatMoney(p.wager)}</td>
                   <td className="font-mono text-slate-400">
-                    {formatMoney(p.potential_payout)}
+                    {formatMoney(p.potential_payout - p.wager)}
                   </td>
                   <td>
                     <StatusBadge status={p.status} />
@@ -223,7 +223,7 @@ export default async function MyPicksPage() {
                   </td>
                   <td className="font-mono">{formatMoney(p.wager)}</td>
                   <td className="font-mono text-slate-400">
-                    {formatMoney(p.potential_payout)}
+                    {formatMoney(Number(p.potential_payout) - Number(p.wager))}
                   </td>
                   <td>
                     <StatusBadge status={p.status} />
