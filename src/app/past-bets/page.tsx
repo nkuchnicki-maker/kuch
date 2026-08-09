@@ -43,7 +43,9 @@ function matchupFor(row: { home_team: string | null; away_team: string | null; e
 // Admin/agent-only: a full, filterable/sortable record of every bet ever
 // placed by anyone — pending or settled — unlike the Bets tab (pending
 // only) or My Picks (a single user's own history). Read-only; no
-// cancel/refund here, this is a record, not a management tool.
+// cancel/refund here, this is a record, not a management tool. Agents only
+// see bets from their own recruited users (u.agent = their agent label) —
+// true admins still see everyone.
 export default async function PastBetsPage() {
   const viewer = await getCurrentUser();
   if (!viewer) redirect("/api/session-expired");
@@ -56,19 +58,23 @@ export default async function PastBetsPage() {
     );
   }
 
+  const agentFilter = viewer.is_admin ? null : viewer.agent;
+
   const [{ rows: pickRows }, { rows: parlayLegRows }] = await Promise.all([
-    db.query<PickRow>(`
-      select p.id, u.display_name, p.wager, p.potential_payout, p.status, p.created_at,
+    db.query<PickRow>(
+      `select p.id, u.display_name, p.wager, p.potential_payout, p.status, p.created_at,
              p.pick_type, p.pick_side,
              g.home_team, g.away_team, g.event_name, l.spread, l.total
       from picks p
       join users u on u.id = p.user_id
       join games g on g.id = p.game_id
       join lines l on l.id = p.line_id
-      order by p.created_at desc
-    `),
-    db.query<ParlayLegRow>(`
-      select pa.id as parlay_id, u.display_name, pa.wager, pa.potential_payout,
+      where $1::text is null or u.agent = $1
+      order by p.created_at desc`,
+      [agentFilter],
+    ),
+    db.query<ParlayLegRow>(
+      `select pa.id as parlay_id, u.display_name, pa.wager, pa.potential_payout,
              pa.status as parlay_status, pa.created_at,
              pl.pick_type, pl.pick_side,
              g.home_team, g.away_team, g.event_name, l.spread, l.total
@@ -77,8 +83,10 @@ export default async function PastBetsPage() {
       join parlay_legs pl on pl.parlay_id = pa.id
       join games g on g.id = pl.game_id
       join lines l on l.id = pl.line_id
-      order by pa.created_at desc, pl.id
-    `),
+      where $1::text is null or u.agent = $1
+      order by pa.created_at desc, pl.id`,
+      [agentFilter],
+    ),
   ]);
 
   const parlaysById = new Map<string, PastBet & { kind: "parlay" }>();

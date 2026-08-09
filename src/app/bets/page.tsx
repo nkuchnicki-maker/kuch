@@ -86,9 +86,11 @@ function legDisplayFor(row: {
 // Admin/agent-only: every pending bet across every user, in one place, with
 // a cancel/refund button — same mechanics as the pending-bets list on the
 // Users page, just as its own dedicated tab instead of buried per-row there.
-// Agents can see everyone's bets here same as on Users, but cancelPickAction/
+// Agents only see bets from their own recruited users (u.agent = their
+// agent label) — true admins still see everyone. cancelPickAction/
 // cancelParlayAction still enforce agent-can-only-cancel-own-recruits
-// server-side via assertCanManageUser, same as before.
+// server-side via assertCanManageUser regardless, this just matches the
+// list to what an agent is actually allowed to act on.
 export default async function BetsPage() {
   const viewer = await getCurrentUser();
   if (!viewer) redirect("/api/session-expired");
@@ -101,19 +103,23 @@ export default async function BetsPage() {
     );
   }
 
+  const agentFilter = viewer.is_admin ? null : viewer.agent;
+
   const [{ rows: pendingPicks }, { rows: pendingParlayLegs }] = await Promise.all([
-    db.query<PendingPickRow>(`
-      select p.id, u.display_name, p.wager, p.is_free_play, p.pick_type, p.pick_side, p.created_at,
+    db.query<PendingPickRow>(
+      `select p.id, u.display_name, p.wager, p.is_free_play, p.pick_type, p.pick_side, p.created_at,
              g.home_team, g.away_team, g.event_name, l.spread, l.total
       from picks p
       join users u on u.id = p.user_id
       join games g on g.id = p.game_id
       join lines l on l.id = p.line_id
       where p.status = 'pending'
-      order by p.created_at desc
-    `),
-    db.query<PendingParlayLegRow>(`
-      select pa.id as parlay_id, u.display_name, pa.wager, pa.is_free_play, pa.created_at,
+        and ($1::text is null or u.agent = $1)
+      order by p.created_at desc`,
+      [agentFilter],
+    ),
+    db.query<PendingParlayLegRow>(
+      `select pa.id as parlay_id, u.display_name, pa.wager, pa.is_free_play, pa.created_at,
              pl.pick_type, pl.pick_side,
              g.home_team, g.away_team, g.event_name, l.spread, l.total
       from parlays pa
@@ -122,8 +128,10 @@ export default async function BetsPage() {
       join games g on g.id = pl.game_id
       join lines l on l.id = pl.line_id
       where pa.status = 'pending'
-      order by pa.created_at desc, pl.id
-    `),
+        and ($1::text is null or u.agent = $1)
+      order by pa.created_at desc, pl.id`,
+      [agentFilter],
+    ),
   ]);
 
   const parlaysById = new Map<string, Extract<PendingBet, { kind: "parlay" }>>();
