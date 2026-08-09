@@ -22,7 +22,7 @@ export default function AgentBreakdown({ summaries }: { summaries: AgentSummary[
           <div key={agent} className="rounded-xl border border-slate-800 bg-slate-900 p-4">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-lg font-semibold text-slate-200">{agent}</h3>
-              <NetAmount amount={summary?.totalNet ?? 0} />
+              <NetAmount amount={summary?.totalBalance ?? 0} />
             </div>
             {summary && summary.users.length > 0 ? (
               <ul className="space-y-1 text-sm">

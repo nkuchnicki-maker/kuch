@@ -46,13 +46,14 @@ export async function getWeeklyHistory(db: Pool): Promise<WeeklyHistoryRow[]> {
   const { rows: txns } = await db.query<{
     user_id: string;
     amount: string;
+    reason: string;
     created_at: Date;
-  }>("select user_id, amount, created_at from coin_transactions order by created_at asc");
+  }>("select user_id, amount, reason, created_at from coin_transactions order by created_at asc");
 
-  const txnsByUser = new Map<string, { amount: number; createdAt: number }[]>();
+  const txnsByUser = new Map<string, { amount: number; reason: string; createdAt: number }[]>();
   for (const t of txns) {
     const list = txnsByUser.get(t.user_id) ?? [];
-    list.push({ amount: Number(t.amount), createdAt: t.created_at.getTime() });
+    list.push({ amount: Number(t.amount), reason: t.reason, createdAt: t.created_at.getTime() });
     txnsByUser.set(t.user_id, list);
   }
 
@@ -63,14 +64,29 @@ export async function getWeeklyHistory(db: Pool): Promise<WeeklyHistoryRow[]> {
 
     let prevBoundary = u.created_at.getTime();
     for (const boundary of boundaries) {
+      // Every transaction at-or-after the boundary, including corrective
+      // ones, must be unwound to reconstruct the real balance at that
+      // point in time.
       const endingBalance =
         currentBalance -
         userTxns
           .filter((t) => t.createdAt >= boundary)
           .reduce((sum, t) => sum + t.amount, 0);
 
+      // Net change excludes 'reset_correction' as well as 'weekly_reset' —
+      // both are administrative balance adjustments, not real betting
+      // results, so they shouldn't count toward a week's (or all-time)
+      // net. weekly_reset entries land exactly on a boundary already and
+      // get excluded by the time filter below; reset_correction rows are
+      // timestamped slightly after and need an explicit exclusion or they
+      // double-count whatever week they were correcting.
       const netChange = userTxns
-        .filter((t) => t.createdAt > prevBoundary && t.createdAt < boundary)
+        .filter(
+          (t) =>
+            t.createdAt > prevBoundary &&
+            t.createdAt < boundary &&
+            t.reason !== "reset_correction",
+        )
         .reduce((sum, t) => sum + t.amount, 0);
 
       history.push({
@@ -117,6 +133,17 @@ export async function getCurrentWeekRows(db: Pool): Promise<WeeklyHistoryRow[]> 
 
 export type AgentSummary = {
   agent: string;
+  // Sum of the agent's users' CURRENT balances — "how much does this
+  // agent's crew have right now," which is what the headline figure on
+  // the History page means by an agent's "balance." Resets weekly along
+  // with everyone else's balance.
+  totalBalance: number;
+  // All-time net summed from the same per-week net figures shown in the
+  // weekly table, ignoring weekly resets entirely. This intentionally
+  // does NOT match totalBalance — it still counts a loss from a week
+  // that's since been wiped by a reset, whereas totalBalance doesn't.
+  // Kept for anyone who wants historical performance rather than a
+  // live balance.
   totalNet: number;
   users: {
     userId: string;
@@ -126,9 +153,9 @@ export type AgentSummary = {
   }[];
 };
 
-// Groups every user by recruiting agent, with each agent's all-time net
-// (summed from the same per-week net figures shown in the weekly table)
-// and each of their users' current balance.
+// Groups every user by recruiting agent, with each agent's current total
+// balance (the headline figure), all-time net, and each user's current
+// balance.
 export async function getAgentSummaries(
   db: Pool,
   history: WeeklyHistoryRow[],
@@ -152,15 +179,17 @@ export async function getAgentSummaries(
   for (const u of users) {
     let summary = byAgent.get(u.agent);
     if (!summary) {
-      summary = { agent: u.agent, totalNet: 0, users: [] };
+      summary = { agent: u.agent, totalBalance: 0, totalNet: 0, users: [] };
       byAgent.set(u.agent, summary);
     }
+    const balance = Number(u.coin_balance);
+    summary.totalBalance += balance;
     summary.totalNet += netByUser.get(u.id) ?? 0;
     summary.users.push({
       userId: u.id,
       username: u.username,
       displayName: u.display_name,
-      balance: Number(u.coin_balance),
+      balance,
     });
   }
 

@@ -191,6 +191,7 @@ select
        where ct2.user_id = u.id and ct2.reason = 'weekly_reset'),
       u.created_at
     )
+    and ct.reason <> 'reset_correction' -- administrative fix, not a real betting result (see 0015_history_exclude_reset_correction.sql)
   ), 0) as net_this_week
 from users u
 left join coin_transactions ct on ct.user_id = u.id
