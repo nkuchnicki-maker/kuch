@@ -59,6 +59,11 @@ export default async function NavBar() {
               📜 History
             </Link>
           )}
+          {user.is_admin && (
+            <Link href="/weekly-recap" className={linkClass}>
+              🧾 Weekly Recap
+            </Link>
+          )}
           {(user.is_admin || user.is_agent) && (
             <Link href="/users" className={linkClass}>
               👥 Users

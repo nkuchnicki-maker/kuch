@@ -23,6 +23,7 @@ create table if not exists users (
   free_play numeric not null default 0, -- separate spendable currency, doesn't reset weekly
   is_agent boolean not null default false, -- can view /users (own agent's recruits only)
   can_create_agents boolean not null default true, -- false = subagent: full agent rights except recruiting more agents
+  recruited_by uuid references users(id) on delete set null, -- direct recruiter (not just the OWN/MJ bucket) — null if recruited directly by the owner, i.e. no agent above them; see Weekly Recap
   created_at timestamptz not null default now()
 );
 

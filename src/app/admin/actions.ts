@@ -48,13 +48,20 @@ export async function createUserAction(formData: FormData) {
   const email = `${username.toLowerCase()}@bettoredge.local`;
   const passwordHash = await hashPassword(password);
 
+  // Direct recruiter for the Weekly Recap commission breakdown — distinct
+  // from the OWN/MJ `agent` bucket above, which only tracks the top-level
+  // branch. Null means recruited directly by an admin, i.e. no agent above
+  // them to take a cut. A non-admin agent/subagent always sets this to
+  // their own id, whether they're creating a player or a subagent.
+  const recruitedBy = viewer.is_admin ? null : viewer.id;
+
   try {
     await db.query(
       `insert into users (
          email, password_hash, username, display_name, coin_balance, starting_balance,
-         min_balance, agent, is_agent, can_create_agents
+         min_balance, agent, is_agent, can_create_agents, recruited_by
        )
-       values ($1, $2, $3, $4, $5, $5, $6, $7, $8, $9)`,
+       values ($1, $2, $3, $4, $5, $5, $6, $7, $8, $9, $10)`,
       [
         email,
         passwordHash,
@@ -65,6 +72,7 @@ export async function createUserAction(formData: FormData) {
         agent,
         isAgentAccount,
         isAgentAccount ? canCreateAgents : true,
+        recruitedBy,
       ],
     );
   } catch (err) {
