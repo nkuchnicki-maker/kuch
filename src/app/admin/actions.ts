@@ -50,10 +50,27 @@ export async function createUserAction(formData: FormData) {
 
   // Direct recruiter for the Weekly Recap commission breakdown — distinct
   // from the OWN/MJ `agent` bucket above, which only tracks the top-level
-  // branch. Null means recruited directly by an admin, i.e. no agent above
-  // them to take a cut. A non-admin agent/subagent always sets this to
-  // their own id, whether they're creating a player or a subagent.
-  const recruitedBy = viewer.is_admin ? null : viewer.id;
+  // branch. A non-admin agent/subagent always sets this to their own id,
+  // whether they're creating a player or a subagent. When an admin creates
+  // the account, players don't self-signup, so the admin is usually
+  // creating it ON BEHALF OF whichever agent was picked from the dropdown
+  // — that agent should still get credit, same as if they'd made the
+  // account themselves. Only null (no agent above, Owner gets 100%) when
+  // there genuinely isn't one: the OWN bucket, or a brand-new top-level
+  // agent account being created (which by definition reports directly to
+  // the Owner).
+  let recruitedBy: string | null = null;
+  if (viewer.is_admin) {
+    if (!isAgentAccount && agent !== "OWN") {
+      const { rows: agentRows } = await db.query<{ id: string }>(
+        "select id from users where agent = $1 and is_agent and can_create_agents and not is_admin limit 1",
+        [agent],
+      );
+      recruitedBy = agentRows[0]?.id ?? null;
+    }
+  } else {
+    recruitedBy = viewer.id;
+  }
 
   try {
     await db.query(
