@@ -15,6 +15,16 @@ export { CURRENT_WEEK_SENTINEL };
 //     downstream takes a cut — the whole liability (a negative number)
 //     lands on the Owner, since only the Owner backs the book.
 //
+// The "up/down" figure is each player's BALANCE — for the current week
+// that's coin_balance itself, same number the History tab's "Total
+// balance" card sums; for a past week it's their reconstructed balance
+// right before that week's reset. Deliberately not net-of-settled-bets:
+// balance is what History already shows as the agent's headline "balance"
+// figure, so Weekly Recap has to agree with it rather than compute a
+// different (net-transactions-only) number that happens to diverge
+// whenever a player has other balance-affecting history (e.g. carried-over
+// pending exposure at the last reset).
+//
 // All figures are framed from the "house" side (positive = the house/
 // office made money that week, i.e. players are net down) so percentages
 // can be applied directly; only playersNet is shown in the reversed,
@@ -25,7 +35,7 @@ export type SubagentRecap = {
   username: string;
   displayName: string;
   parentAgentId: string | null;
-  playersNet: number; // + = players up, - = players down
+  playersNet: number; // sum of their players' balances; + = players up, - = players down
   keeps: number; // always >= 0
 };
 
@@ -33,7 +43,7 @@ export type AgentRecap = {
   userId: string;
   username: string;
   displayName: string;
-  directNet: number; // players recruited directly by this agent
+  directNet: number; // sum of balances for players recruited directly by this agent
   directKeeps: number; // always >= 0
   subagentOverride: number; // always >= 0, summed 10% cut across their subagents
   totalKeeps: number;
@@ -96,13 +106,13 @@ export async function getWeeklyRecap(db: Pool): Promise<WeeklyRecapEntry[]> {
   );
 
   return weeks.map((week) => {
-    const netByPlayerId = new Map(
-      allRows.filter((r) => r.weekEnding === week).map((r) => [r.userId, r.netChange]),
+    const balanceByPlayerId = new Map(
+      allRows.filter((r) => r.weekEnding === week).map((r) => [r.userId, r.endingBalance]),
     );
     const netFor = (recruiterId: string) =>
       players
         .filter((p) => p.recruited_by === recruiterId)
-        .reduce((sum, p) => sum + (netByPlayerId.get(p.id) ?? 0), 0);
+        .reduce((sum, p) => sum + (balanceByPlayerId.get(p.id) ?? 0), 0);
 
     const subagentRecaps: SubagentRecap[] = subagents.map((s) => {
       const playersNet = netFor(s.id);
@@ -166,7 +176,7 @@ export async function getWeeklyRecap(db: Pool): Promise<WeeklyRecapEntry[]> {
       const hasAgentAbove = !!p.recruited_by && (agentIds.has(p.recruited_by) ||
         subagentRecaps.some((s) => s.userId === p.recruited_by));
       if (!hasAgentAbove) {
-        ownerDirect += houseResultFor(netByPlayerId.get(p.id) ?? 0);
+        ownerDirect += houseResultFor(balanceByPlayerId.get(p.id) ?? 0);
       }
     }
 
