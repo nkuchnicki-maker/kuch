@@ -184,11 +184,14 @@ export async function resetPasswordAction(formData: FormData) {
 
 // Admin can freely grant OR take back free play, no cap. An agent/subagent
 // can only GRANT (never remove) free play to their own recruited users,
-// capped at 40% of that player's current balance — and that cap is on the
-// TOTAL granted since the last weekly reset, not per grant, so an agent
-// can't just make several 40% grants back to back. The cap resets
-// naturally along with everyone else's balance at each weekly reset,
-// since it's measured from that same boundary.
+// capped at 40% of the absolute value of that player's min_balance (their
+// credit floor, e.g. 40% of $200 for the -$200 default) — deliberately
+// NOT their current coin_balance, which is commonly zero or negative and
+// would make the cap useless most of the time. That cap is on the TOTAL
+// granted since the last weekly reset, not per grant, so an agent can't
+// just make several 40%-sized grants back to back. It resets naturally
+// along with everyone else's balance at each weekly reset, since it's
+// measured from that same boundary.
 export async function adjustFreePlayAction(formData: FormData) {
   const viewer = await requireAdminOrAgent();
 
@@ -224,9 +227,9 @@ export async function adjustFreePlayAction(formData: FormData) {
 
   const { rows: userRows } = await db.query<{
     display_name: string;
-    coin_balance: string;
+    min_balance: string;
     created_at: Date;
-  }>("select display_name, coin_balance, created_at from users where id = $1", [userId]);
+  }>("select display_name, min_balance, created_at from users where id = $1", [userId]);
   const target = userRows[0];
   if (!target) throw new Error("User not found");
 
@@ -241,13 +244,12 @@ export async function adjustFreePlayAction(formData: FormData) {
   );
   const alreadyGranted = Number(grantedRows[0].total);
 
-  const balance = Number(target.coin_balance);
-  const cap = balance > 0 ? balance * AGENT_WEEKLY_FREE_PLAY_CAP_FRACTION : 0;
+  const cap = Math.abs(Number(target.min_balance)) * AGENT_WEEKLY_FREE_PLAY_CAP_FRACTION;
   const remaining = Math.max(0, cap - alreadyGranted);
 
   if (amount > remaining) {
     throw new Error(
-      `Free play rejected: you can grant ${target.display_name} at most 40% of their balance ` +
+      `Free play rejected: you can grant ${target.display_name} at most 40% of their minimum balance ` +
         `(${formatMoney(cap)}) in free play per week. ` +
         (alreadyGranted > 0
           ? `You've already given them ${formatMoney(alreadyGranted)} this week — ${formatMoney(remaining)} left.`
