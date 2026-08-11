@@ -11,6 +11,7 @@ import {
   resetPasswordAction,
 } from "./actions";
 import CancelBetButton from "./CancelBetButton";
+import AdjustFreePlayForm from "./AdjustFreePlayForm";
 
 type UserRow = {
   id: string;
@@ -175,7 +176,11 @@ export default async function UsersPage() {
           <tbody>
             {users.length ? (
               users.map((u, i) => {
-                const canAdjustFreePlay = viewer.is_admin;
+                // Admin can freely adjust; an agent can only GRANT (never
+                // remove) free play to their own recruited users, capped
+                // server-side at 40% of that player's balance per week —
+                // see adjustFreePlayAction.
+                const canAdjustFreePlay = viewer.is_admin || u.agent === viewer.agent;
                 const canAdjustBalance = viewer.is_admin;
                 const canAdjustMinBalance = viewer.is_admin || u.agent === viewer.agent;
                 const canManageBets = viewer.is_admin || u.agent === viewer.agent;
@@ -295,22 +300,11 @@ export default async function UsersPage() {
                         {formatMoney(u.free_play)}
                       </div>
                       {canAdjustFreePlay && (
-                        <form action={adjustFreePlayAction} className="mt-1 flex justify-end gap-1">
-                          <input type="hidden" name="userId" value={u.id} />
-                          <input
-                            name="amount"
-                            type="number"
-                            placeholder="+/- $"
-                            required
-                            className="w-24 rounded border border-slate-700 bg-slate-800 px-1.5 py-0.5 text-xs"
-                          />
-                          <button
-                            type="submit"
-                            className="rounded bg-slate-700 px-2 py-0.5 text-xs hover:bg-slate-600"
-                          >
-                            Apply
-                          </button>
-                        </form>
+                        <AdjustFreePlayForm
+                          userId={u.id}
+                          action={adjustFreePlayAction}
+                          placeholder={viewer.is_admin ? "+/- $" : "+$ (max 40%)"}
+                        />
                       )}
                     </td>
                   </tr>

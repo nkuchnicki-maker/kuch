@@ -174,6 +174,23 @@ alter table coin_transactions
   foreign key (related_casino_round_id) references casino_rounds(id) on delete set null;
 
 -- ============================================================
+-- free_play_grants: audit log of free play grants made by an agent or
+-- subagent (not admin — admin grants aren't capped and aren't logged
+-- here). Enforces a rolling weekly cap of 40% of the player's current
+-- balance on TOTAL free play an agent can grant that player since the
+-- last weekly reset — see adjustFreePlayAction in src/app/users/actions.ts.
+-- ============================================================
+create table if not exists free_play_grants (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references users(id) on delete cascade,
+  granted_by uuid not null references users(id),
+  amount numeric not null check (amount > 0),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists free_play_grants_user_id_idx on free_play_grants (user_id);
+
+-- ============================================================
 -- Helpful view: standings since each user's last weekly reset (see
 -- src/lib/weeklyReset.ts — resets happen at Sunday midnight America/
 -- New_York, not a fixed UTC boundary, so this can't just use Postgres's

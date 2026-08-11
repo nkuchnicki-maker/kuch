@@ -2,7 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireAdmin, requireAdminOrAgent, hashPassword, type CurrentUser } from "@/lib/auth";
+import { requireAdminOrAgent, hashPassword, type CurrentUser } from "@/lib/auth";
+import { formatMoney } from "@/lib/format";
+
+// An agent/subagent can grant a player at most 40% of that player's
+// CURRENT balance in free play — but that's a cap on the total granted
+// since the last weekly reset, not per grant (see adjustFreePlayAction).
+const AGENT_WEEKLY_FREE_PLAY_CAP_FRACTION = 0.4;
 
 // Agents can only cancel bets for their own recruited users — same
 // ownership rule as setMinBalanceAction.
@@ -176,10 +182,15 @@ export async function resetPasswordAction(formData: FormData) {
   revalidatePath("/users");
 }
 
-// Free play is admin-only to grant/adjust — agents can view balances and
-// add new players, but not hand out free play themselves.
+// Admin can freely grant OR take back free play, no cap. An agent/subagent
+// can only GRANT (never remove) free play to their own recruited users,
+// capped at 40% of that player's current balance — and that cap is on the
+// TOTAL granted since the last weekly reset, not per grant, so an agent
+// can't just make several 40% grants back to back. The cap resets
+// naturally along with everyone else's balance at each weekly reset,
+// since it's measured from that same boundary.
 export async function adjustFreePlayAction(formData: FormData) {
-  await requireAdmin();
+  const viewer = await requireAdminOrAgent();
 
   const userId = String(formData.get("userId"));
   const amount = Number(formData.get("amount"));
@@ -188,15 +199,79 @@ export async function adjustFreePlayAction(formData: FormData) {
     throw new Error("Amount must be a non-zero number");
   }
 
-  const { rows } = await db.query(
-    `update users set free_play = free_play + $1
-     where id = $2 and free_play + $1 >= 0
-     returning free_play`,
-    [amount, userId],
-  );
+  if (viewer.is_admin) {
+    const { rows } = await db.query(
+      `update users set free_play = free_play + $1
+       where id = $2 and free_play + $1 >= 0
+       returning free_play`,
+      [amount, userId],
+    );
 
-  if (rows.length === 0) {
-    throw new Error("User not found, or free play cannot go negative");
+    if (rows.length === 0) {
+      throw new Error("User not found, or free play cannot go negative");
+    }
+
+    revalidatePath("/users");
+    return;
+  }
+
+  // Non-admin agent/subagent path — capped grant only.
+  if (amount < 0) {
+    throw new Error("You can only add free play, not take it away");
+  }
+
+  await assertCanManageUser(viewer, userId);
+
+  const { rows: userRows } = await db.query<{
+    display_name: string;
+    coin_balance: string;
+    created_at: Date;
+  }>("select display_name, coin_balance, created_at from users where id = $1", [userId]);
+  const target = userRows[0];
+  if (!target) throw new Error("User not found");
+
+  const { rows: resetRows } = await db.query<{ last_reset: Date | null }>(
+    "select max(created_at) as last_reset from coin_transactions where reason = 'weekly_reset'",
+  );
+  const weekStart = resetRows[0]?.last_reset ?? target.created_at;
+
+  const { rows: grantedRows } = await db.query<{ total: string }>(
+    "select coalesce(sum(amount), 0) as total from free_play_grants where user_id = $1 and created_at > $2",
+    [userId, weekStart],
+  );
+  const alreadyGranted = Number(grantedRows[0].total);
+
+  const balance = Number(target.coin_balance);
+  const cap = balance > 0 ? balance * AGENT_WEEKLY_FREE_PLAY_CAP_FRACTION : 0;
+  const remaining = Math.max(0, cap - alreadyGranted);
+
+  if (amount > remaining) {
+    throw new Error(
+      `Free play rejected: you can grant ${target.display_name} at most 40% of their balance ` +
+        `(${formatMoney(cap)}) in free play per week. ` +
+        (alreadyGranted > 0
+          ? `You've already given them ${formatMoney(alreadyGranted)} this week — ${formatMoney(remaining)} left.`
+          : `You can give up to ${formatMoney(remaining)}.`),
+    );
+  }
+
+  const client = await db.connect();
+  try {
+    await client.query("begin");
+    await client.query("update users set free_play = free_play + $1 where id = $2", [
+      amount,
+      userId,
+    ]);
+    await client.query(
+      "insert into free_play_grants (user_id, granted_by, amount) values ($1, $2, $3)",
+      [userId, viewer.id, amount],
+    );
+    await client.query("commit");
+  } catch (err) {
+    await client.query("rollback");
+    throw err;
+  } finally {
+    client.release();
   }
 
   revalidatePath("/users");
