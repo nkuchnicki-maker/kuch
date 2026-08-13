@@ -23,8 +23,13 @@ export async function proxy(request: NextRequest) {
   }
 
   if (session && isLoginPage) {
+    // Same destination as loginAction's post-login redirect — Leaderboard
+    // is a hidden tab now. This runs at the edge and can't check is_agent
+    // (no DB access here), but that's fine: an agent-only account landing
+    // on /lines gets redirected again to /users by the page itself, same
+    // harmless extra hop loginAction already produces for that case.
     const url = request.nextUrl.clone();
-    url.pathname = "/leaderboard";
+    url.pathname = "/lines";
     return NextResponse.redirect(url);
   }
 
