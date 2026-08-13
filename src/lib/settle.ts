@@ -179,8 +179,14 @@ async function trySettleParlay(db: Pool, parlayId: string) {
     "select status, odds from parlay_legs where parlay_id = $1",
     [parlayId],
   );
-  if (legs.some((l) => l.status === "pending")) return; // still waiting on other games
 
+  // A single lost leg dooms the whole parlay no matter what the other legs
+  // are doing — settle it as a loss immediately instead of leaving it
+  // pending for however long it takes the rest of the legs' games to
+  // finish. Any leg that's still genuinely pending when this runs later
+  // (its own game finishes) still gets its own status recorded normally by
+  // settleMatchupParlayLegs/settleOutrightParlayLegs; trySettleParlay just
+  // no-ops on it at that point since the parlay is already settled.
   if (legs.some((l) => l.status === "loss")) {
     await db.query(
       "update parlays set status = 'loss', settled_at = now() where id = $1",
@@ -189,6 +195,8 @@ async function trySettleParlay(db: Pool, parlayId: string) {
     await debitOnLoss(db, parlay, "parlay");
     return;
   }
+
+  if (legs.some((l) => l.status === "pending")) return; // still waiting on other games
 
   if (legs.every((l) => l.status === "push")) {
     await db.query(
