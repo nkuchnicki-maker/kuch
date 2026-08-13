@@ -18,14 +18,19 @@ export default async function HistoryPage() {
     );
   }
 
+  // Non-admin agents (and subagents) only ever see their own agent bucket
+  // — never another agent's users or balances. Same pattern as /users,
+  // /bets, /past-bets.
+  const agentFilter = user.is_admin ? null : user.agent;
+
   const [pastRows, currentRows] = await Promise.all([
-    getWeeklyHistory(db),
-    getCurrentWeekRows(db),
+    getWeeklyHistory(db, agentFilter),
+    getCurrentWeekRows(db, agentFilter),
   ]);
   const rows = [...currentRows, ...pastRows];
   // Includes this week's net-so-far, not just completed weeks — otherwise
   // "all-time" would understate whatever's happened since the last reset.
-  const agentSummaries = await getAgentSummaries(db, rows);
+  const agentSummaries = await getAgentSummaries(db, rows, agentFilter);
   const grandTotal = agentSummaries.reduce((sum, s) => sum + s.totalBalance, 0);
 
   return (

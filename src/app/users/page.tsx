@@ -61,26 +61,40 @@ export default async function UsersPage() {
     );
   }
 
+  // Non-admin agents (and subagents) only ever see their own agent bucket
+  // — never another agent's users, balances, or bets. Admin still sees
+  // everyone. Same pattern as /bets and /past-bets.
+  const agentFilter = viewer.is_admin ? null : viewer.agent;
+
   const [{ rows: users }, { rows: pendingPicks }, { rows: pendingParlays }] = await Promise.all([
     db.query<UserRow>(
-      "select id, username, display_name, agent, coin_balance, min_balance, free_play from users order by display_name",
+      `select id, username, display_name, agent, coin_balance, min_balance, free_play from users
+       where $1::text is null or agent = $1
+       order by display_name`,
+      [agentFilter],
     ),
-    db.query<PendingPickRow>(`
-      select p.id, p.user_id, p.wager, p.is_free_play, p.pick_type, p.pick_side,
+    db.query<PendingPickRow>(
+      `select p.id, p.user_id, p.wager, p.is_free_play, p.pick_type, p.pick_side,
              coalesce(g.event_name, g.away_team || ' @ ' || g.home_team) as description
       from picks p
       join games g on g.id = p.game_id
+      join users u on u.id = p.user_id
       where p.status = 'pending'
-      order by p.created_at desc
-    `),
-    db.query<PendingParlayRow>(`
-      select pa.id, pa.user_id, pa.wager, pa.is_free_play, count(pl.id) as leg_count
+        and ($1::text is null or u.agent = $1)
+      order by p.created_at desc`,
+      [agentFilter],
+    ),
+    db.query<PendingParlayRow>(
+      `select pa.id, pa.user_id, pa.wager, pa.is_free_play, count(pl.id) as leg_count
       from parlays pa
       join parlay_legs pl on pl.parlay_id = pa.id
+      join users u on u.id = pa.user_id
       where pa.status = 'pending'
+        and ($1::text is null or u.agent = $1)
       group by pa.id
-      order by pa.created_at desc
-    `),
+      order by pa.created_at desc`,
+      [agentFilter],
+    ),
   ]);
 
   const pendingByUser = new Map<string, PendingBet[]>();

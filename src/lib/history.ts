@@ -20,7 +20,13 @@ export type WeeklyHistoryRow = {
 // minus everything that happened at-or-after T (working backwards from the
 // one number we know is authoritative). That sidesteps needing to know
 // what a user's balance was when they were first created.
-export async function getWeeklyHistory(db: Pool): Promise<WeeklyHistoryRow[]> {
+// agentFilter: null shows every agent's users (admin view); a specific
+// agent code (e.g. 'MJ') restricts to just that bucket — a non-admin
+// agent/subagent must never see another agent's users, balances, or bets.
+export async function getWeeklyHistory(
+  db: Pool,
+  agentFilter: string | null = null,
+): Promise<WeeklyHistoryRow[]> {
   const { rows: boundaryRows } = await db.query<{ boundary_at: Date }>(
     `select distinct created_at as boundary_at
      from coin_transactions
@@ -40,7 +46,11 @@ export async function getWeeklyHistory(db: Pool): Promise<WeeklyHistoryRow[]> {
     // Admin/Test are utility accounts, not real players — same exclusion
     // as the leaderboard, so they don't skew an agent's all-time net with
     // dev/testing activity.
-    "select id, username, display_name, coin_balance, created_at from users where not is_admin and username <> 'Test' order by display_name",
+    `select id, username, display_name, coin_balance, created_at from users
+     where not is_admin and username <> 'Test'
+       and ($1::text is null or agent = $1)
+     order by display_name`,
+    [agentFilter],
   );
 
   const { rows: txns } = await db.query<{
@@ -112,14 +122,23 @@ export async function getWeeklyHistory(db: Pool): Promise<WeeklyHistoryRow[]> {
 // Admin/Test/agent exclusions as the rest of this file.
 export const CURRENT_WEEK_SENTINEL = "current";
 
-export async function getCurrentWeekRows(db: Pool): Promise<WeeklyHistoryRow[]> {
+export async function getCurrentWeekRows(
+  db: Pool,
+  agentFilter: string | null = null,
+): Promise<WeeklyHistoryRow[]> {
   const { rows } = await db.query<{
     user_id: string;
     username: string;
     display_name: string;
     coin_balance: string;
     net_this_week: string;
-  }>("select user_id, username, display_name, coin_balance, net_this_week from weekly_standings");
+  }>(
+    `select ws.user_id, ws.username, ws.display_name, ws.coin_balance, ws.net_this_week
+     from weekly_standings ws
+     join users u on u.id = ws.user_id
+     where $1::text is null or u.agent = $1`,
+    [agentFilter],
+  );
 
   return rows.map((r) => ({
     userId: r.user_id,
@@ -159,6 +178,7 @@ export type AgentSummary = {
 export async function getAgentSummaries(
   db: Pool,
   history: WeeklyHistoryRow[],
+  agentFilter: string | null = null,
 ): Promise<AgentSummary[]> {
   const { rows: users } = await db.query<{
     id: string;
@@ -167,7 +187,11 @@ export async function getAgentSummaries(
     coin_balance: string;
     agent: string;
   }>(
-    "select id, username, display_name, coin_balance, agent from users where not is_admin and username <> 'Test' order by display_name",
+    `select id, username, display_name, coin_balance, agent from users
+     where not is_admin and username <> 'Test'
+       and ($1::text is null or agent = $1)
+     order by display_name`,
+    [agentFilter],
   );
 
   const netByUser = new Map<string, number>();
