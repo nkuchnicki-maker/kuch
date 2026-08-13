@@ -50,32 +50,47 @@ export default async function LeaderboardPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/api/session-expired");
 
+  // This page had NO bucket scoping at all — any logged-in user (agent or
+  // player) could see every other agent's users' balances and bets just by
+  // visiting the URL, hidden-from-nav or not. Same fix as /users, /bets,
+  // /past-bets, /history: non-admin viewers only ever see their own agent
+  // bucket, both for balances and for the recent-picks feed.
+  const agentFilter = user.is_admin ? null : user.agent;
+
   const [{ rows: standings }, { rows: pickFeed }, { rows: parlayFeed }] =
     await Promise.all([
       db.query<StandingRow>(
-        "select * from weekly_standings order by net_this_week desc",
+        `select ws.* from weekly_standings ws
+         join users u on u.id = ws.user_id
+         where $1::text is null or u.agent = $1
+         order by ws.net_this_week desc`,
+        [agentFilter],
       ),
-      db.query<FeedRow>(`
-        select p.id, p.pick_type, p.pick_side, p.wager, p.potential_payout, p.status, p.created_at,
+      db.query<FeedRow>(
+        `select p.id, p.pick_type, p.pick_side, p.wager, p.potential_payout, p.status, p.created_at,
                u.display_name, g.home_team, g.away_team, g.event_name
         from picks p
         join users u on u.id = p.user_id
         join games g on g.id = p.game_id
         where not u.is_admin and not u.is_agent and u.username <> 'Test'
+          and ($1::text is null or u.agent = $1)
         order by p.created_at desc
-        limit 20
-      `),
-      db.query<ParlayFeedRow>(`
-        select pa.id, pa.wager, pa.potential_payout, pa.status, pa.created_at,
+        limit 20`,
+        [agentFilter],
+      ),
+      db.query<ParlayFeedRow>(
+        `select pa.id, pa.wager, pa.potential_payout, pa.status, pa.created_at,
                u.display_name, count(pl.id) as leg_count
         from parlays pa
         join users u on u.id = pa.user_id
         join parlay_legs pl on pl.parlay_id = pa.id
         where not u.is_admin and not u.is_agent and u.username <> 'Test'
+          and ($1::text is null or u.agent = $1)
         group by pa.id, u.display_name
         order by pa.created_at desc
-        limit 20
-      `),
+        limit 20`,
+        [agentFilter],
+      ),
     ]);
 
   const feed: FeedItem[] = [
