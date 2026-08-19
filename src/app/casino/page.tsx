@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser, isAgentOnly } from "@/lib/auth";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, formatDateTime } from "@/lib/format";
 import CasinoTabs from "./CasinoTabs";
 
 type CasinoRoundRow = {
@@ -79,7 +79,7 @@ export default async function CasinoPage() {
                     {r.outcome}
                   </td>
                   <td className="text-xs text-slate-500">
-                    {new Date(r.created_at).toLocaleString()}
+                    {formatDateTime(r.created_at)}
                   </td>
                 </tr>
               ))}

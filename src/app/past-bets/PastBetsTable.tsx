@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, formatDateTime } from "@/lib/format";
 import StatusBadge from "../components/StatusBadge";
 
 type LegDisplay = { label: string; matchup: string };
@@ -194,7 +194,7 @@ export default function PastBetsTable({ bets }: { bets: PastBet[] }) {
                   <StatusBadge status={bet.status} />
                 </td>
                 <td className="py-2 text-xs text-slate-500">
-                  {new Date(bet.createdAt).toLocaleString()}
+                  {formatDateTime(bet.createdAt)}
                 </td>
               </tr>
             ))

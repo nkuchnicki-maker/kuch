@@ -27,6 +27,27 @@ export function formatGameTime(dateInput: string | Date): string {
   return `${formatted} EST`;
 }
 
+// Same fix as formatGameTime, for timestamps like "Placed" on a bet —
+// naive toLocaleString() on these server components renders in the
+// server's own UTC time, not the viewer's, which is what made a bet
+// placed shortly before a fight card started look like it was placed
+// after the card started (or even "tomorrow") to an Eastern-time viewer.
+// Includes the year since a placed timestamp can be months old, unlike a
+// game time which is always near-term.
+export function formatDateTime(dateInput: string | Date): string {
+  const date = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
+  const formatted = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
+  return `${formatted} EST`;
+}
+
 // Turns a pick into a short, plain-English label — "Chicago White Sox ML",
 // "Chicago White Sox -3.5", "Over 8.5", "Draw" — instead of the raw
 // pick_type/pick_side jargon ("moneyline — home"). Used anywhere admins/

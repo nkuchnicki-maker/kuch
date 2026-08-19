@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { formatMoney, describePick } from "@/lib/format";
+import { formatMoney, describePick, formatDateTime } from "@/lib/format";
 import { cancelPickAction, cancelParlayAction } from "../users/actions";
 import CancelBetButton from "../users/CancelBetButton";
 
@@ -217,7 +217,7 @@ export default async function BetsPage() {
                   </td>
                   <td className="font-mono">{formatMoney(bet.wager)}</td>
                   <td className="text-xs text-slate-500">
-                    {new Date(bet.created_at).toLocaleString()}
+                    {formatDateTime(bet.created_at)}
                   </td>
                   <td className="pr-4 text-right">
                     <CancelBetButton

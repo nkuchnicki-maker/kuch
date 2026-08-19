@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser, isAgentOnly } from "@/lib/auth";
 import StatusBadge from "../components/StatusBadge";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, formatDateTime } from "@/lib/format";
 
 type PickRow = {
   id: string;
@@ -189,7 +189,7 @@ export default async function MyPicksPage() {
                     <StatusBadge status={p.status} />
                   </td>
                   <td className="pr-4 text-xs text-slate-500">
-                    {new Date(p.created_at).toLocaleString()}
+                    {formatDateTime(p.created_at)}
                   </td>
                 </tr>
               ))}
@@ -229,7 +229,7 @@ export default async function MyPicksPage() {
                     <StatusBadge status={p.status} />
                   </td>
                   <td className="pr-4 text-xs text-slate-500">
-                    {new Date(p.created_at).toLocaleString()}
+                    {formatDateTime(p.created_at)}
                   </td>
                 </tr>
               ))
