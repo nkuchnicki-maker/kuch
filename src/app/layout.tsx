@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import "./globals.css";
 import NavBar from "./components/NavBar";
 import { getCurrentUser } from "@/lib/auth";
+import { isSiteLocked } from "@/lib/siteLock";
 import { BetSlipProvider } from "./lines/BetSlipContext";
 import BetSlip from "./lines/BetSlip";
 
@@ -33,6 +36,17 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const user = await getCurrentUser();
+
+  // Site-wide lock, re-checked from the DB on every request (not baked into
+  // the JWT) so it takes effect immediately for already-logged-in users too.
+  // Skips /locked itself (avoids a redirect loop) and signed-out visitors
+  // (proxy.ts already routes them to /login regardless).
+  if (user && !user.is_admin) {
+    const pathname = (await headers()).get("x-pathname") ?? "";
+    if (pathname !== "/locked" && (await isSiteLocked())) {
+      redirect("/locked");
+    }
+  }
 
   return (
     <html

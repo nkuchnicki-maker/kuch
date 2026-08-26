@@ -14,9 +14,11 @@ import SyncButton from "./SyncButton";
 import ResetWeekButton from "./ResetWeekButton";
 import DeleteUserButton from "./DeleteUserButton";
 import VoidGameButton from "./VoidGameButton";
+import SiteLockButton from "./SiteLockButton";
 import { formatMoney } from "@/lib/format";
 import { AGENTS } from "@/lib/agents";
 import { sportIcon } from "@/lib/sportIcons";
+import { isSiteLocked } from "@/lib/siteLock";
 
 type UserRow = {
   id: string;
@@ -59,7 +61,7 @@ export default async function AdminPage() {
     );
   }
 
-  const [{ rows: users }, { rows: games }] = await Promise.all([
+  const [{ rows: users }, { rows: games }, siteLocked] = await Promise.all([
     db.query<UserRow>(
       "select id, username, display_name, coin_balance, min_balance, agent, is_admin, is_agent from users order by display_name",
     ),
@@ -71,6 +73,7 @@ export default async function AdminPage() {
       left join lines l on l.game_id = g.id
       order by g.start_time desc
     `),
+    isSiteLocked(),
   ]);
 
   return (
@@ -78,6 +81,16 @@ export default async function AdminPage() {
       <h1 className="mb-8 text-2xl font-bold text-emerald-400">
         Bettor Edge — Admin
       </h1>
+
+      <section className="mb-10 rounded-xl border border-slate-800 bg-slate-900 p-6">
+        <h2 className="mb-4 text-lg font-semibold">Site access</h2>
+        <p className="mb-4 text-sm text-slate-400">
+          Locks every non-admin account out of the site immediately (already
+          logged-in users included) — they see a &quot;temporarily locked&quot;
+          page until you unlock it. Admins are never affected.
+        </p>
+        <SiteLockButton initiallyLocked={siteLocked} />
+      </section>
 
       <section className="mb-10 rounded-xl border border-slate-800 bg-slate-900 p-6">
         <h2 className="mb-4 text-lg font-semibold">Create a new user</h2>

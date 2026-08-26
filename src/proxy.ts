@@ -6,6 +6,11 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/session";
 // happens in getCurrentUser() inside pages/actions, which also re-checks
 // is_admin from the DB for anything sensitive).
 export async function proxy(request: NextRequest) {
+  // Stamped on every request so the root layout (a Server Component, no
+  // direct access to the URL) can tell what page it's rendering — used to
+  // avoid redirect-looping /locked back to itself when the site is locked.
+  request.headers.set("x-pathname", request.nextUrl.pathname);
+
   // API routes handle their own auth (e.g. /api/sync checks a shared
   // secret so an external cron can call it without a browser session).
   if (request.nextUrl.pathname.startsWith("/api/")) {

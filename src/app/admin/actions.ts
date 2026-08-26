@@ -7,6 +7,7 @@ import { isAgent } from "@/lib/agents";
 import { settlePicksForGame, settleOutrightEvent, voidGame } from "@/lib/settle";
 import { syncAllTrackedSports, type SyncSummary } from "@/lib/sync";
 import { forceWeeklyReset, type WeeklyResetResult } from "@/lib/weeklyReset";
+import { setSiteLocked } from "@/lib/siteLock";
 
 export async function createUserAction(formData: FormData) {
   const viewer = await requireAdminOrAgent();
@@ -313,4 +314,15 @@ export async function resetWeekAction(): Promise<WeeklyResetResult> {
   revalidatePath("/picks");
 
   return result;
+}
+
+export async function toggleSiteLockAction(locked: boolean): Promise<void> {
+  const admin = await requireAdmin();
+
+  await setSiteLocked(locked, admin.id);
+
+  // Every route reads the lock in the root layout, so a blanket revalidate
+  // is the simplest way to make already-open non-admin tabs pick it up on
+  // their next navigation/refresh.
+  revalidatePath("/", "layout");
 }
